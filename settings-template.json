@@ -1,0 +1,14 @@
+{
+    "SQLConfig": {
+        "user": "NodeExpress",
+        "password": "",
+        "database": "Tracker",
+        "server": "localhost",
+        "options": {
+            "encrypt": false,
+            "trustServerCertificate": true
+        },
+        "port": 1433
+    },
+    "port": 80
+}
