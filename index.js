@@ -50,6 +50,7 @@ app.use('/a/', apiLimit)
 //Directs all trafic going to '/a' to the router
 app.use('/a/home', require('./routes/Home'))
 app.use('/a/asset', require('./routes/Asset'))
+app.use('/a/job', require('./routes/Jobs'))
 
 //Default Error Messages
 app.use((err, req, res, next) => {
