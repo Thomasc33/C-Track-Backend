@@ -4,7 +4,6 @@ const express = require('express')
 const https = require('https')
 const http = require('http')
 const sql = require('mssql')
-const bodyParser = require('body-parser')
 const cors = require('cors')
 const rateLimit = require('express-rate-limit')
 
@@ -34,8 +33,8 @@ const credentials = { // Certificates for SSL encryption, required to make every
 }
 
 // Body Parser
-app.use(bodyParser.urlencoded({ extended: true }));
-app.use(bodyParser.json());
+app.use(express.json());
+app.use(express.urlencoded());
 
 // CORS setup (ran into issues with CORS on other projects)
 app.use(cors())

@@ -43,7 +43,7 @@ Router.get('/user/:uid', async (req, res) => {
     // Format Job Codes
     let hourly_jobs = {}, ppd_jobs = {}
     job_codes.recordset.forEach(job => {
-        if(job.status_only) return
+        if (job.status_only) return
         if (job.is_hourly) hourly_jobs[job.id] = { job_name: job.job_name, job_code: job.job_code, price: job.price }
         else ppd_jobs[job.id] = { job_name: job.job_name, job_code: job.job_code, price: job.price }
     })
@@ -52,6 +52,7 @@ Router.get('/user/:uid', async (req, res) => {
     let data = { "Daily Dollars": 0 }
 
     asset_tracking.recordset.forEach(ppd => {
+        if (!ppd_jobs[ppd.job_code]) return
         let job_name = ppd_jobs[ppd.job_code].job_name
         if (!job_name) return
         if (data[job_name]) data[job_name].count = data[job_name] + 1
@@ -60,13 +61,14 @@ Router.get('/user/:uid', async (req, res) => {
     })
 
     hourly_tracking.recordset.forEach(hourly => {
+        if (!hourly_jobs[hourly.job_code]) return
         let job_name = hourly_jobs[hourly.job_code].job_name
         if (!job_name) return
         if (data[job_name]) data[job_name].count = data[job_name].count + hourly.hours
         else data[job_name] = { count: hourly.hours }
         data["Daily Dollars"] = data["Daily Dollars"] + (hourly_jobs[hourly.job_code] * hourly.hours)
     })
-    
+
     return res.status(200).json(data)
 })
 
