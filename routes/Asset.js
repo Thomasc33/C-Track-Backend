@@ -2,6 +2,7 @@ const express = require('express')
 const Router = express.Router()
 const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
+const tokenParsing = require('../lib/tokenParsing')
 
 const typeOfs = {
     asset: 'asset',
@@ -14,18 +15,17 @@ const typeOfToColumn = {
     job: 'job_code',
 }
 
-Router.get('/user/:uid/:date', async (req, res) => {
-    // Get UID parameter from URL
-    let uid = req.params.uid
+Router.get('/user/:date', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+
+    //Get date from header
     let date = req.params.date
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
-
-    // Data validation for UID. Check for UID, and Check if UID exists
-    if (!uid || uid == '') return res.status(400).json({ code: 400, message: 'No UID given' })
-    let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
 
     // Get Data
 
@@ -49,9 +49,14 @@ Router.get('/user/:uid/:date', async (req, res) => {
 })
 
 Router.post('/user/new', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+
     // Get Params
     const data = req.body;
-    let { date, user, job_code, asset_id, notes } = data
+    let { date, job_code, asset_id, notes } = data
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -62,10 +67,6 @@ Router.post('/user/new', async (req, res) => {
     if (!date || date.replace(/\d{4}-\d{2}-\d{2}/g, '') !== '') {
         errored = true
         issues.push('Issue with Date format/ Invalid Date')
-    }
-    if (!user || (typeof (user) == 'string' && user.replace(/\d/gi, '') !== '')) {
-        errored = true
-        issues.push('Invalid User ID or User ID not type Int')
     }
     if (!job_code || (typeof (job_code) == 'string' && job_code.replace(/\d/gi, '') !== '')) {
         errored = true
@@ -78,10 +79,9 @@ Router.post('/user/new', async (req, res) => {
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
     // Send to DB
-    let result = await pool.request().query(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${user}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
+    let result = await pool.request().query(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        console.log(result.error)
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
     }
 
@@ -90,9 +90,14 @@ Router.post('/user/new', async (req, res) => {
 })
 
 Router.post('/user/edit', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+
     // Get Params
     const data = req.body;
-    let { id, change, value, user } = data
+    let { id, change, value } = data
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -100,10 +105,6 @@ Router.post('/user/edit', async (req, res) => {
     // Validate Data
     let errored = false
     let issues = []
-    if (!user || (typeof (user) == 'string' && user.replace(/\d/gi, '') !== '')) {
-        errored = true
-        issues.push('Invalid User ID or User ID not type Int')
-    }
     if (!id || (typeof (id) == 'string' && id.replace(/\d/gi, '') !== '')) {
         errored = true
         issues.push(`Invalid History ID`)
@@ -115,12 +116,6 @@ Router.post('/user/edit', async (req, res) => {
                 issues.push('Issue with Date format/ Invalid Date')
             }
             break;
-        case 'int':
-            if (!user || (typeof (user) == 'string' && user.replace(/\d/gi, '') !== '')) {
-                errored = true
-                issues.push(`Invalid ${change}`)
-            }
-            break
         case 'asset': //no data validation yet
             break;
         case 'null': //no data validation
@@ -130,14 +125,48 @@ Router.post('/user/edit', async (req, res) => {
     if (!typeOfToColumn[change]) return res.status(500).json({ message: 'Unsuccessful', issues: 'Unknown column name to change' })
 
     // Send to DB
-    let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${user}'`)
+    let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        console.log(result.error)
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
     }
 
     // Return
+    return res.status(200).json({ message: 'Success' })
+})
+
+Router.delete('/user/del/:id/:date', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+
+    // Get Params
+    const id = req.params.id
+    const date = req.params.date
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Data validation for UID. Check for UID, and Check if UID exists
+    if (!uid || uid == '') return res.status(400).json({ code: 400, message: 'No UID given' })
+    let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
+    if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
+
+    if (!id || id == '') return res.status(400).json({ code: 400, message: 'No ID given' })
+    resu = await pool.request().query(`SELECT id FROM asset_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
+    if (resu == 'Invalid ID') return res.status(400).json({ code: 400, message: 'Invalid ID or not found' })
+
+    let asset_tracking = await pool.request().query(`DELETE FROM asset_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (asset_tracking.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+    }
+
+    // Return Data
     return res.status(200).json({ message: 'Success' })
 })
 

@@ -50,6 +50,7 @@ app.use('/a/', apiLimit)
 app.use('/a/home', require('./routes/Home'))
 app.use('/a/asset', require('./routes/Asset'))
 app.use('/a/job', require('./routes/Jobs'))
+app.use('/a/user', require('./routes/User'))
 
 //Default Error Messages
 app.use((err, req, res, next) => {

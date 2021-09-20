@@ -2,10 +2,13 @@ const express = require('express')
 const Router = express.Router()
 const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
+const tokenParsing = require('../lib/tokenParsing')
 
-Router.get('/user/:uid', async (req, res) => {
-    // Get UID parameter from URL
-    let uid = req.params.uid
+Router.get('/user', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -55,7 +58,7 @@ Router.get('/user/:uid', async (req, res) => {
         if (!ppd_jobs[ppd.job_code]) return
         let job_name = ppd_jobs[ppd.job_code].job_name
         if (!job_name) return
-        if (data[job_name]) data[job_name].count = data[job_name] + 1
+        if (data[job_name]) data[job_name].count = data[job_name].count + 1
         else data[job_name] = { count: 1 }
         data["Daily Dollars"] = data["Daily Dollars"] + ppd_jobs[ppd.job_code].price
     })
