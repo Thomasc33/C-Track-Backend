@@ -39,10 +39,10 @@ app.use(express.urlencoded());
 // CORS setup (ran into issues with CORS on other projects)
 app.use(cors())
 
-// Rate Limit: 10 * 1000ms = 10 seconds, Max = 20 requests per 10 seconds 
+// Rate Limit
 const apiLimit = rateLimit({
-    windowMs: 10 * 1000,
-    max: 20
+    windowMs: 5 * 1000, //10 seconds
+    max: 30 //20 requests
 })
 app.use('/a/', apiLimit)
 

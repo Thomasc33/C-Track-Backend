@@ -53,7 +53,6 @@ Router.post('/user/new', async (req, res) => {
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(401).json({ error: uid.er })
-
     // Get Params
     const data = req.body;
     let { date, job_code, asset_id, notes } = data

@@ -23,7 +23,6 @@ Router.get('/all', async (req, res) => {
     }
 
     // Return Data
-    console.log(data)
     return res.status(200).json(data)
 })
 
