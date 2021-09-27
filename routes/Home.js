@@ -68,8 +68,8 @@ Router.get('/user', async (req, res) => {
         let job_name = hourly_jobs[hourly.job_code].job_name
         if (!job_name) return
         if (data[job_name]) data[job_name].count = data[job_name].count + hourly.hours
-        else data[job_name] = { count: hourly.hours }
-        data["Daily Dollars"] = data["Daily Dollars"] + (hourly_jobs[hourly.job_code] * hourly.hours)
+        else data[job_name] = { count: hourly.hours, is_hourly:true }
+        data["Daily Dollars"] += hourly_jobs[hourly.job_code].price * hourly.hours
     })
 
     return res.status(200).json(data)

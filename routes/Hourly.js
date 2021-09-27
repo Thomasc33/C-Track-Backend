@@ -4,16 +4,19 @@ const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 
-const typeOfs = {
-    asset: 'asset',
-    notes: 'null',
-    job: 'int',
-}
 const typeOfToColumn = {
-    asset: 'asset_id',
     notes: 'notes',
     job: 'job_code',
+    start: 'start_time',
+    end: 'end_time'
 }
+
+/**
+ * TO DO
+ * 
+ * Add data validation to edit route
+ * Edit new route
+ */
 
 Router.get('/user/:date', async (req, res) => {
     // Get UID from header
@@ -30,9 +33,9 @@ Router.get('/user/:date', async (req, res) => {
     // Get Data
 
     // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
-    let asset_tracking = await pool.request().query(`SELECT * FROM asset_tracking WHERE user_id = '${uid}' AND date = '${getDate(date)}'`)
+    let hourly_tracking = await pool.request().query(`SELECT * FROM hourly_tracking WHERE user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (asset_tracking.isErrored) {
+    if (hourly_tracking.isErrored) {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
@@ -41,7 +44,7 @@ Router.get('/user/:date', async (req, res) => {
 
     // Organize Data
     let data = {
-        records: asset_tracking.recordset
+        records: hourly_tracking.recordset
     }
 
     // Return Data
@@ -55,7 +58,7 @@ Router.post('/user/new', async (req, res) => {
     if (uid.errored) return res.status(401).json({ error: uid.er })
     // Get Params
     const data = req.body;
-    let { date, job_code, asset_id, notes } = data
+    let { date, job_code, startTime, endTime, total_hours, notes } = data
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -67,18 +70,26 @@ Router.post('/user/new', async (req, res) => {
         errored = true
         issues.push('Issue with Date format/ Invalid Date')
     }
+    if (!startTime || startTime.replace(/\d+:\d{2}/g, '') !== '' || parseInt(startTime.split(':')[0] > 24) || parseInt(startTime.split(':')[1] > 45) || parseInt(startTime.split(':')[1]) % 15 !== 0) {
+        errored = true
+        issues.push('Issue with Start Time')
+    }
+    if (!endTime || endTime.replace(/\d+:\d{2}/g, '') !== '' || parseInt(endTime.split(':')[0] > 24) || parseInt(endTime.split(':')[1] > 45) || parseInt(endTime.split(':')[1]) % 15 !== 0) {
+        errored = true
+        issues.push('Issue with End Time')
+    }
+    if (!total_hours || `${total_hours}`.replace(/[\d.]/g, '') !== '') {
+        errored = true
+        issues.push('Issue with Total Hours')
+    }
     if (!job_code || (typeof (job_code) == 'string' && job_code.replace(/\d/gi, '') !== '')) {
         errored = true
         issues.push('Invalid Job Code or Job Code not type Int')
     }
-    if (!asset_id) {
-        errored = true
-        issues.push('Asset ID not provided')
-    }
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
     // Send to DB
-    let result = await pool.request().query(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
+    let result = await pool.request().query(`INSERT INTO hourly_tracking (job_code, user_id, start_time, end_time, notes, hours, date) VALUES ('${job_code}', '${uid}', '${startTime}', '${endTime}', ${notes ? `'${notes}'` : 'null'}, '${total_hours}', '${date}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
@@ -96,7 +107,7 @@ Router.post('/user/edit', async (req, res) => {
 
     // Get Params
     const data = req.body;
-    let { id, change, value } = data
+    let { id, change, value, total_hours } = data
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -108,7 +119,7 @@ Router.post('/user/edit', async (req, res) => {
         errored = true
         issues.push(`Invalid History ID`)
     }
-    switch (typeOfs[change]) {
+    switch (change) {
         case 'date':
             if (!value || value.replace(/\d{4}-\d{2}-\d{2}/g, '') !== '') {
                 errored = true
@@ -124,7 +135,7 @@ Router.post('/user/edit', async (req, res) => {
     if (!typeOfToColumn[change]) return res.status(500).json({ message: 'Unsuccessful', issues: 'Unknown column name to change' })
 
     // Send to DB
-    let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${uid}'`)
+    let result = await pool.request().query(`UPDATE hourly_tracking SET ${typeOfToColumn[change]} = '${value}'${total_hours ? `, hours = ${total_hours}` : ''} WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
@@ -153,12 +164,12 @@ Router.delete('/user/del/:id/:date', async (req, res) => {
     if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
 
     if (!id || id == '') return res.status(400).json({ code: 400, message: 'No ID given' })
-    resu = await pool.request().query(`SELECT id FROM asset_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
+    resu = await pool.request().query(`SELECT id FROM hourly_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
     if (resu == 'Invalid ID') return res.status(400).json({ code: 400, message: 'Invalid ID or not found' })
 
-    let asset_tracking = await pool.request().query(`DELETE FROM asset_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
+    let hourly_tracking = await pool.request().query(`DELETE FROM hourly_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (asset_tracking.isErrored) {
+    if (hourly_tracking.isErrored) {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
