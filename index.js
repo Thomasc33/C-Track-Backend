@@ -46,6 +46,14 @@ const apiLimit = rateLimit({
 })
 app.use('/a/', apiLimit)
 
+app.use((req, res, next) => {
+    let d = new Date();
+    let formatted_date = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
+    let log = `[${formatted_date}] ${req.method}:${req.url} ${res.statusCode}`;
+    console.log(log);
+    next();
+})
+
 //Directs all trafic going to '/a' to the router
 app.use('/a/home', require('./routes/Home'))
 app.use('/a/asset', require('./routes/Asset'))

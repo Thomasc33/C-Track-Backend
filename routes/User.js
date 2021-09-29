@@ -37,17 +37,36 @@ Router.get('/verify', async (req, res) => {
     let resu = await pool.request().query(`INSERT INTO users (username, is_dark_theme, is_admin, email, title, name) VALUES ('${username}','1','0','${email}','Employee', '${name}')`)
         .catch(er => { return { isErrored: true, error: er } })
     if (resu.isErrored) return res.status(500).json({ error: resu.error })
-    return res.status(200).json({ message: `Success` })
+    res.status(200).json({ message: `Success` })
+
+    // Create user permission table
+    uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { console.log(`Unable to create user_permissions for: ${name}`); return })
+    pool.request().query(`INSERT INTO user_permissions (id) VALUES ('${uid}')`)
+    return
+})
+
+Router.get('/permissions', async (req, res) => {
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (errored) return res.status(401).json({ error: er })
+    res.status(200).json({ uid, isAdmin, permissions })
+})
+
+Router.get('/all', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin && !permissions.view_users) return res.status(403).json({ error: 'Forbidden' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //query
+    let resu = await pool.request().query(`SELECT name, email, title FROM users`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (resu.isErrored) return res.status(500).json({ error: resu.error })
+    return res.status(200).json({ users: resu.recordset })
 })
 
 module.exports = Router
-
-/**
- * 
- * @param {Date} date 
- * @returns 
- */
-function getDate(date) {
-    date = new Date(date)
-    return date.toISOString().split('T')[0]
-}
