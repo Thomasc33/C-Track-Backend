@@ -60,6 +60,7 @@ app.use('/a/asset', require('./routes/Asset'))
 app.use('/a/job', require('./routes/Jobs'))
 app.use('/a/user', require('./routes/User'))
 app.use('/a/hourly', require('./routes/Hourly'))
+app.use('/a/importer', require('./routes/Importer'))
 
 //Default Error Messages
 app.use((err, req, res, next) => {

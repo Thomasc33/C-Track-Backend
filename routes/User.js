@@ -104,7 +104,6 @@ Router.post('/perm/edit', async (req, res) => {
     if (!isAdmin && !permissions.edit_users) return res.status(403).json({ error: 'Forbidden' })
 
     // Data validation
-    console.log(req.body)
     const { id, perms } = req.body
     if (!id || isNaN(parseInt(id))) return res.status(400).json({ error: 'Invalid UID provided' })
 
@@ -118,7 +117,6 @@ Router.post('/perm/edit', async (req, res) => {
     if (resu.recordset.length < 1) return res.status(500).json({ error: 'User not found' })
     delete resu.recordset[0].id
     let changeString = Object.keys(resu.recordset[0]).map(m => `${m} = ${perms.includes(m) ? '1' : '0'}`).join(', ')
-    console.log(`UPDATE user_permissions SET ${changeString} WHERE id = '${id}'`)
     let res2 = await pool.request().query(`UPDATE user_permissions SET ${changeString} WHERE id = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (res2.isErrored) return res.status(500).json({ error: resu.error })
