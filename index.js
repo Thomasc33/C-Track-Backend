@@ -34,7 +34,7 @@ const credentials = { // Certificates for SSL encryption, required to make every
 
 // Body Parser
 app.use(express.json());
-app.use(express.urlencoded());
+app.use(express.urlencoded({ extended: true }));
 
 // CORS setup (ran into issues with CORS on other projects)
 app.use(cors())
@@ -46,6 +46,7 @@ const apiLimit = rateLimit({
 })
 app.use('/a/', apiLimit)
 
+// Request Logging
 app.use((req, res, next) => {
     let d = new Date();
     let formatted_date = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
@@ -54,34 +55,15 @@ app.use((req, res, next) => {
     next();
 })
 
-//Directs all trafic going to '/a' to the router
+// Directs all trafic going to '/a' to the router
 app.use('/a/home', require('./routes/Home'))
 app.use('/a/asset', require('./routes/Asset'))
 app.use('/a/job', require('./routes/Jobs'))
 app.use('/a/user', require('./routes/User'))
 app.use('/a/hourly', require('./routes/Hourly'))
 app.use('/a/importer', require('./routes/Importer'))
+app.use('/a/model', require('./routes/Model'))
 
-//Default Error Messages
-app.use((err, req, res, next) => {
-    switch (err.message) {
-        case 'NoCodeProvided':
-            return res.status(400).send({
-                status: 'ERROR',
-                error: err.message,
-            });
-        default:
-            return res.status(500).send({
-                status: 'ERROR',
-                error: err.message,
-            });
-    }
-});
-
-//Adds logging to all requests
-// app.use((err, req, res) => {
-//     console.log(req)
-// })
 
 // Starts HTTP Server
 // Will switch to HTTPS for prod

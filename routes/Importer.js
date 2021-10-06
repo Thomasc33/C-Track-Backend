@@ -19,33 +19,55 @@ Router.post('/asset', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get all models
-    const model_query = await pool.request().query(`SELECT model_number FROM models`)
-        .catch(er => { return { isErrored: true, error: er } })
+    let failedAssets = []
+    const model_query = await pool.request().query(`SELECT model_number,name FROM models`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (model_query.isErrored) return res.status(500).json({ error: model_query.error })
-    const models = []
-    for (let i in model_query.recordset) models.push(i.model_number)
+    const models = {}
+    for (let i of model_query.recordset) models[i.model_number] = i.name.toLowerCase()
 
+    const assets_query = await pool.request().query(`SELECT id FROM assets`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (model_query.isErrored) return res.status(500).json({ error: model_query.error })
+    const assets = new Set(Array.from(assets_query.recordset, (v, k) => { return v.id }))
 
     // Data validation
     let validInserts = []
     for (let i of data) {
-        if (!i.id || !i.model_number) continue;
-        if (!models.includes(i.model_number)) continue;
+        // Check to see if data was provided
+        if (!i.id || !i.model_number) { failedAssets.push({ id: `${i.id || i.model_number}`, reason: 'Missing Information' }); continue; }
+
+        // Ensure model exists
+        if (!models[i.model_number]) {
+            let found = false
+            for (let j in models) if (models[j] === i.model_number.toLowerCase()) {
+                i.model_number = j
+                found = true
+                break;
+            }
+            if (!found) { failedAssets.push({ id: `${i.id}`, reason: `Model Number ${i.model_number} doesnt exist` }); continue; }
+        }
+
+        // Ensure asset doesnt already exist
+        if (assets.has(i.id)) { failedAssets.push({ id: `${i.id}`, reason: `Asset already exists` }); continue; }
+
+        // Add to valid inserts
         validInserts.push(i)
+        assets.add(i.id)
     }
 
-    if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import' })
+    if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import', failed: failedAssets })
 
     // Query
-    const query = await pool.request().query(`INSERT INTO assets (id, model_number, status) VALUES ${validInserts.map(m => `(${m.id.trim()}, ${m.model_number.trim()}, ${newAssetStatusCode.trim()})`).join(', ')}`)
+    const query = await pool.request().query(`INSERT INTO assets (id, model_number, status) VALUES ${validInserts.map(m => `('${m.id.trim()}', '${m.model_number.trim()}', '${newAssetStatusCode}')`).join(', ')}`)
         .catch(er => { return { isErrored: true, error: er } })
     if (query.isErrored) {
         console.log(query.error)
-        res.status(500).json({ error: query.error })
+        return res.status(500).json({ error: query.error, failed: failedAssets })
     }
 
     // Return
-    return res.status(200).json({ message: 'Success' })
+    return res.status(200).json({ message: 'Success', failed: failedAssets })
 })
 
 Router.post('/model', async (req, res) => {
@@ -56,33 +78,42 @@ Router.post('/model', async (req, res) => {
 
     // Get json data
     const data = req.body
-    console.log(data)
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
+    // Get Current Models to avoid duplicates
+    const models = new Set()
+    let failedModels = []
+    const modelQuery = await pool.request().query(`SELECT model_number FROM models`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (modelQuery.isErrored) return res.status(500).json(er)
+    for (let i of modelQuery.recordset) {
+        models.add(i.model_number)
+    }
+    console.log(models)
 
     // Data validation
     let validInserts = []
     for (let i of data) {
-        if (!i.id || !i.name || !i.manufacturer) continue;
-        if (!deviceTypes.includes(i.device_type)) continue
+        if (!i.id || !i.name || !i.manufacturer) { failedModels.push({ id: i.id || i.name || i.manufacturer, reason: 'Missing Information' }); continue; }
+        if (!deviceTypes.includes(i.device_type)) { failedModels.push({ id: `${i.id}`, reason: 'Device type not recognized' }); continue; }
+        if (models.has(i.id)) { failedModels.push({ id: `${i.id}`, reason: 'Model number already exists' }); continue; }
         validInserts.push(i)
+        models.add(i.id)
     }
-    console.log(validInserts)
 
-    if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import' })
-
+    if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import', failed: failedModels })
     // Query
-    const query = await pool.request().query(`INSERT INTO models (model_number, name, category, manufacturer) VALUES ${validInserts.map(m => `(${m.id.trim()}, ${m.name.trim()}, ${m.device_type.trim()}, ${m.manufacturer.trim()})`).join(', ')}`)
+    const query = await pool.request().query(`INSERT INTO models (model_number, name, category, manufacturer) VALUES ${validInserts.map(m => `('${m.id.trim()}', '${m.name.trim()}', '${m.device_type.trim()}', '${m.manufacturer.trim()}')`).join(',')}`)
         .catch(er => { return { isErrored: true, error: er } })
     if (query.isErrored) {
         console.log(query.error)
-        return res.status(500).json({ error: query.error })
+        return res.status(500).json({ error: query.error, failed: failedModels })
     }
 
     // Return
-    return res.status(200).json({ message: 'Success' })
+    return res.status(200).json({ message: 'Success', failed: failedModels })
 })
 
 module.exports = Router
