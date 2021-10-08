@@ -215,12 +215,11 @@ Router.post('/catalog', async (req, res) => {
     // Data Validation
     let errors = []
     if (isNaN(parseInt(offset))) errors.push('Invalid Offset')
-    if (isNaN(parseInt(limit))) errors.push('Invalid Limit')
     if (!orderBy) errors.push('Invalid orderBy')
     if (errors.length > 0) return res.status(400).json({ error: errors })
 
     // Get Data
-    let rq = await pool.request().query(`SELECT * FROM assets ORDER BY ${orderBy} DESC OFFSET ${offset} ROWS FETCH ${offset == 0? 'FIRST': 'NEXT'} ${limit} ROWS ONLY`)
+    let rq = await pool.request().query(`SELECT * FROM assets ORDER BY ${orderBy} DESC ${limit ? `OFFSET ${offset} ROWS FETCH ${offset == 0 ? 'FIRST' : 'NEXT'} ${limit} ROWS ONLY` : ''}`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (rq.isErrored) {
         // Check for specific errors
@@ -236,6 +235,73 @@ Router.post('/catalog', async (req, res) => {
 
     // Return Data
     return res.status(200).json(data)
+})
+
+Router.get('/get/:search', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+
+    //Get date from header
+    const search = req.params.search
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get Data
+
+    let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${search}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (asset_query.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+    }
+
+    // Organize Data
+    let resu
+    if (asset_query.recordset.length === 1) resu = { ...asset_query.recordset[0] }
+    else resu = { notFound: true }
+
+    // Return Data
+    return res.status(200).json(resu)
+})
+
+Router.post('/edit', async (req, res) => {
+    // Get UID from header
+    const { uid, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (!permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
+
+    //Get date from header
+    const { id, change, value } = req.body
+
+    // Data validation
+    let issues = []
+    if (!id) issues.push('no asset id')
+    if (!change) issues.push('no change type')
+    if (!value) issues.push('no change value')
+    if (issues.length > 0) return res.status(400).json(issues)
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get Data
+    let asset_query = await pool.request().query(`UPDATE assets SET ${change} = '${value}' WHERE id = '${id}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+
+    if (asset_query.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+    }
+
+    // Return Data
+    return res.status(200).json({ message: 'success' })
 })
 
 module.exports = Router
