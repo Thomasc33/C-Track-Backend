@@ -6,6 +6,7 @@ const http = require('http')
 const sql = require('mssql')
 const cors = require('cors')
 const rateLimit = require('express-rate-limit')
+const tokenParsing = require('./lib/tokenParsing')
 
 //Globals
 const app = express()
@@ -42,7 +43,7 @@ app.use(cors())
 // Rate Limit
 const apiLimit = rateLimit({
     windowMs: 5 * 1000, //10 seconds
-    max: 30 //20 requests
+    max: 50 //50 requests
 })
 app.use('/a/', apiLimit)
 
@@ -53,6 +54,40 @@ app.use((req, res, next) => {
     let log = `[${formatted_date}] ${req.method}:${req.url} ${res.statusCode}`;
     console.log(log);
     next();
+})
+
+// Historical Logging
+app.use(async (req, res, next) => {
+    next()
+    // Get UID
+    const uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return
+
+    // Get Route
+    const route = `${req.method}:${req.url}`
+
+    // Get IP
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress
+
+    // Get Time
+    const time = new Date().toISOString().replace(/[a-z]/gi, ' ')
+
+    // Attempt to get body
+    const body = req.body
+    let bodyString = ''
+    for(let i in body){
+        bodyString+=`"${i}":"{${body[i]}}", `
+    }
+    console.log(bodyString)
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Send to DB
+    pool.request().query(`INSERT INTO history ([user], time, ip_address, route, body) VALUES ('${uid}','${time}','${ip}','${route}','${bodyString}')`)
+        .catch(er => { console.log('error when inserting into log: ', er) })
+
 })
 
 // Directs all trafic going to '/a' to the router

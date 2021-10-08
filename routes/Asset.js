@@ -283,7 +283,18 @@ Router.post('/edit', async (req, res) => {
     let issues = []
     if (!id) issues.push('no asset id')
     if (!change) issues.push('no change type')
-    if (!value) issues.push('no change value')
+
+    // if change == model_number, validate the model number
+    if (change == 'model_number') {
+        let q = await pool.request().query(`SELECT model_number from models`)
+            .catch(er => { return { isErrored: true, error: er } })
+        if (q.isErrored) return res.status(500).json({ message: 'failed to query model numbers', er: q.error })
+        let found = false
+        for (let i of q.recordset)
+            if (i.model_number == value) found = true
+        if (!found) issues.push('Model number doesnt exist')
+    }
+
     if (issues.length > 0) return res.status(400).json(issues)
 
     // Establish SQL Connection
