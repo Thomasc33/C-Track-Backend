@@ -58,6 +58,7 @@ app.use((req, res, next) => {
 
 // Historical Logging
 app.use(async (req, res, next) => {
+    if (!req.headers.authorization) return res.status(403).json('Missing authorization header')
     next()
     // Get UID
     const uid = await tokenParsing.toUID(req.headers.authorization)
@@ -76,13 +77,15 @@ app.use(async (req, res, next) => {
     // Attempt to get body
     const body = req.body
     let bodyString = ''
-    for(let i in body){
-        bodyString+=`"${i}":"{${body[i]}}", `
+    for (let i in body) {
+        bodyString += `"${i}":"{${body[i]}}", `
     }
-    console.log(bodyString)
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
+
+    // Return if required data points are missing
+    if (!uid || !time) return
 
     // Send to DB
     pool.request().query(`INSERT INTO history ([user], time, ip_address, route, body) VALUES ('${uid}','${time}','${ip}','${route}','${bodyString}')`)
@@ -98,6 +101,7 @@ app.use('/a/user', require('./routes/User'))
 app.use('/a/hourly', require('./routes/Hourly'))
 app.use('/a/importer', require('./routes/Importer'))
 app.use('/a/model', require('./routes/Model'))
+app.use('/a/reports', require('./routes/Reports'))
 
 
 // Starts HTTP Server

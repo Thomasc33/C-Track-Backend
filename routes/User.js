@@ -79,6 +79,23 @@ Router.get('/all', async (req, res) => {
     return res.status(200).json({ users: data })
 })
 
+Router.get('/all/admin', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin) return res.status(403).json({ error: 'Forbidden' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //query
+    let users = await pool.request().query(`SELECT id, name, is_admin FROM users`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (users.isErrored) return res.status(500).json({ error: users.error })
+
+    return res.status(200).json({ users: users.recordset })
+})
+
 Router.get('/names', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
@@ -122,6 +139,34 @@ Router.post('/perm/edit', async (req, res) => {
     if (res2.isErrored) return res.status(500).json({ error: resu.error })
 
     if (!changeString || changeString == '') return res.status(200).json({ message: 'No Changes Made' })
+    return res.status(200).json({ message: 'success' })
+})
+
+Router.post('/perm/edit/admin', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin) return res.status(403).json({ error: 'Forbidden' })
+
+    // Data validation
+    const { id } = req.body
+    const setAdminTo = req.body.isAdmin
+    console.log(id, setAdminTo)
+    if (!id || isNaN(parseInt(id))) return res.status(400).json({ error: 'Invalid UID provided' })
+    if (![0, 1].includes(setAdminTo)) return res.status(400).json({ error: 'setAdminTo is not binary' })
+
+    // Block user from removing admin from themselves
+    if (uid == id) return res.status(401).json({ message: 'Unable to remove admin from yourself' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query
+    let resu = await pool.request().query(`UPDATE users SET is_admin = ${setAdminTo} WHERE id = '${id}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (resu.isErrored) return res.status(500).json({ error: resu.error })
+
+    return res.status(200).json({ message: 'Success' })
 })
 
 module.exports = Router
