@@ -271,10 +271,10 @@ Router.get('/get/:search', async (req, res) => {
 
 Router.post('/edit', async (req, res) => {
     // Get UID from header
-    const { uid, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
+    if (!isAdmin && !permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
 
     //Get date from header
     const { id, change, value } = req.body

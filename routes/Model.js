@@ -75,10 +75,10 @@ Router.post('/catalog', async (req, res) => {
 
 Router.post('/edit', async (req, res) => {
     // Get UID from token header and check for admin
-    const { uid, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!permissions.edit_jobcodes) return res.status(403).json({ error: 'User is not an administrator' })
+    if (!isAdmin && !permissions.edit_jobcodes) return res.status(403).json({ error: 'User is not an administrator' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
