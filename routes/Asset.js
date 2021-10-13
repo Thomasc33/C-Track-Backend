@@ -3,6 +3,7 @@ const Router = express.Router()
 const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
+const newAssetStatusCode = require('../settings.json').newAssetStatusCode
 
 const typeOfs = {
     asset: 'asset',
@@ -335,6 +336,46 @@ Router.post('/edit', async (req, res) => {
 
     // Return Data
     return res.status(200).json({ message: 'success' })
+})
+
+Router.put('/create', async (req, res) => {
+    // Get UID from header
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
+
+    // Get req body
+    const { asset_id, model_id } = req.body
+    console.log(asset_id, model_id)
+
+    // Data Validation
+    let issues = []
+    if (!asset_id) issues.push('Missing Asset ID')
+    if (!model_id) issues.push('Missing Model ID')
+
+    if (issues.length > 0) return res.status(400).json({ message: issues })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Check to see if model exists
+    let model_query = await pool.request().query(`SELECT model_number FROM models WHERE model_number = '${model_id}'`).catch(er => { return { isErrored: true, error: er } })
+    if (model_query.isErrored) return res.status(500).json({ message: `Error in model validation query\n${model_query.error}` })
+    console.log(model_query)
+    if (!model_query.recordset) return res.status(400).json({ message: 'Model Does not exist' })
+
+    // Check to see if asset exists
+    let asset_dupe_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${asset_id}'`).catch(er => { return { isErrored: true, error: er } })
+    if (asset_dupe_query.isErrored) return res.status(500).json({ message: 'Error in asset duplicate validation query' })
+    if (asset_dupe_query.recordset && asset_dupe_query.recordset.length != 0) return res.status(400).json({ message: 'Asset already exists' })
+
+    // Insert
+    let asset_query = await pool.request().query(`INSERT INTO assets (id, model_number, status) VALUES ('${asset_id}','${model_id}','${newAssetStatusCode}')`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (asset_query.isErrored) return res.status(500).json({ message: asset_query.error })
+
+    // Return
+    return res.status(200).json({ message: 'Success' })
 })
 
 module.exports = Router

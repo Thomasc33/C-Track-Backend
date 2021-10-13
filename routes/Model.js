@@ -92,10 +92,10 @@ Router.post('/edit', async (req, res) => {
     if (!value) errors.push('No value provided')
     else switch (change) {
         case 'model_number':
-            let resu = pool.request().query(`SELCT model_number FROM models WHERE model_number = '${value}'`)
+            let resu = pool.request().query(`SELECT model_number FROM models WHERE model_number = '${value}'`)
                 .catch(er => { console.log(er); return { isErrored: true, error: er } })
             if (resu.isErrored) return res.status(501).json({ error: resu.error })
-            if (resu.recordset.length > 0) errors.push('Model number already exists')
+            if (resu.recordset) errors.push('Model number already exists')
             break;
         case 'name':
             //no further validation needed
