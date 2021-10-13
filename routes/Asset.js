@@ -262,8 +262,30 @@ Router.get('/get/:search', async (req, res) => {
 
     // Organize Data
     let resu
-    if (asset_query.recordset.length === 1) resu = { ...asset_query.recordset[0] }
+    if (asset_query.recordset.length === 1) {
+        resu = { info: asset_query.recordset[0] }
+
+        // Asset Status History Query
+        let history_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${resu.info.id}' ORDER BY date DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (asset_query.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
+
+        if (!history_query.isErrored && history_query.recordset.length > 0) {
+            let his = []
+            for (let i of history_query.recordset) {
+                let name = await pool.request().query(`SELECT name FROM users WHERE id = '${i.user_id}'`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+                if (name.isErrored) return res.status(500).json({ message: `Failed user name query for (${i.user_id})` })
+                if (name.recordset[0] && name.recordset[0].name) name = name.recordset[0].name
+                else name = `uid: ${i.user_id}`
+                his.push({ name, job_code: i.job_code, date: i.date, id: i.id })
+            }
+            resu.history = his
+        }
+    }
     else resu = { notFound: true }
+
+
+
+
 
     // Return Data
     return res.status(200).json(resu)
