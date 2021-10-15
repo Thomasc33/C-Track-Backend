@@ -10,7 +10,7 @@
         },
         "port": 1433
     },
-    "port": 80
+    "port": 80,
 	"tenantId": "",
     "appid": "",
     "newAssetStatusCode": "3",
