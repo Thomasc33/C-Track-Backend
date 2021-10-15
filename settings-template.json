@@ -11,4 +11,8 @@
         "port": 1433
     },
     "port": 80
+	"tenantId": "",
+    "appid": "",
+    "newAssetStatusCode": "3",
+    "deviceTypes": ["laptop", "tablet", "phone", "mifi", "depricated"]
 }
