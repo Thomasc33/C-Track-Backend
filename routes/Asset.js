@@ -86,7 +86,10 @@ Router.post('/user/new', async (req, res) => {
     }
 
     // Return
-    return res.status(200).json({ message: 'Success' })
+    res.status(200).json({ message: 'Success' })
+
+    // Edit asset and set status
+    pool.request().query(`UPDATE assets SET job_code = '${job_code}' WHERE id = '${asset_id}'`)
 })
 
 Router.post('/user/edit', async (req, res) => {
@@ -132,7 +135,10 @@ Router.post('/user/edit', async (req, res) => {
     }
 
     // Return
-    return res.status(200).json({ message: 'Success' })
+    res.status(200).json({ message: 'Success' })
+
+    // Edit asset and set status
+    pool.request().query(`UPDATE assets SET job_code = '${job_code}' WHERE id = '${asset_id}'`)
 })
 
 Router.delete('/user/del/:id/:date', async (req, res) => {
