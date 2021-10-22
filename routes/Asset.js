@@ -79,6 +79,7 @@ Router.post('/user/new', async (req, res) => {
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
     // Send to DB
+    console.log(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
     let result = await pool.request().query(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
@@ -89,7 +90,7 @@ Router.post('/user/new', async (req, res) => {
     res.status(200).json({ message: 'Success' })
 
     // Edit asset and set status
-    pool.request().query(`UPDATE assets SET job_code = '${job_code}' WHERE id = '${asset_id}'`)
+    pool.request().query(`UPDATE assets SET status = '${job_code}' WHERE id = '${asset_id}'`)
 })
 
 Router.post('/user/edit', async (req, res) => {
