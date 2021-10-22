@@ -139,7 +139,7 @@ Router.post('/user/edit', async (req, res) => {
     res.status(200).json({ message: 'Success' })
 
     // Edit asset and set status
-    pool.request().query(`UPDATE assets SET job_code = '${job_code}' WHERE id = '${asset_id}'`)
+    if (change == 'job') pool.request().query(`UPDATE assets SET status = '${value}' WHERE id = '${id}'`)
 })
 
 Router.delete('/user/del/:id/:date', async (req, res) => {
@@ -284,7 +284,7 @@ Router.get('/get/:search', async (req, res) => {
                 if (name.isErrored) return res.status(500).json({ message: `Failed user name query for (${i.user_id})` })
                 if (name.recordset[0] && name.recordset[0].name) name = name.recordset[0].name
                 else name = `uid: ${i.user_id}`
-                his.push({ name, job_code: i.job_code, date: i.date, id: i.id })
+                his.push({ name, job_code: i.job_code, date: i.date, id: i.id, notes: i.notes })
             }
             resu.history = his
         }

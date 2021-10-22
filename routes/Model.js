@@ -103,6 +103,9 @@ Router.post('/edit', async (req, res) => {
         case 'manufacturer':
             //no further validation needed
             break;
+        case 'image':
+            //no further validation needed
+            break;
         case 'category':
             if (!require('../settings.json').deviceTypes.includes(value)) errors.push("Category not recognized")
             break;
@@ -132,7 +135,7 @@ Router.post('/new', async (req, res) => {
     if (!isAdmin) return res.status(403).json({ error: 'User is not an administrator' })
 
     // Get Data
-    const { model_number, model_name, manufacturer, category } = req.body
+    const { model_number, model_name, manufacturer, category, image } = req.body
 
     // Data Validation
     let issues = []
@@ -147,7 +150,7 @@ Router.post('/new', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`INSERT INTO models (model_number, name, category, manufacturer) VALUES ('${model_number}','${model_name}','${category}','${manufacturer}')`)
+    let query = await pool.request().query(`INSERT INTO models (model_number, name, category, manufacturer, image) VALUES ('${model_number}','${model_name}','${category}','${manufacturer}', '${image || null}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
