@@ -120,7 +120,7 @@ Router.post('/edit', async (req, res) => {
     // Data Validation
     let errors = []
     if (!id || isNaN(parseInt(id))) errors.push('Invalid Job ID')
-    if (!value) errors.push('No value provided')
+    if (!value && change !== 'applies') errors.push('No value provided')
     else switch (change) {
         case 'isHourly':
             if (!['true', 'false'].includes(value.toLowerCase()))
