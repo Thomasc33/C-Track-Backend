@@ -112,8 +112,8 @@ Router.get('/user/:uid/:date', async (req, res) => {
         if (!ppd_jobs[ppd.job_code]) return
         let job_name = 'ppd_' + ppd_jobs[ppd.job_code].job_name
         if (!job_name) return
-        if (data[job_name]) data[job_name].count = data[job_name].count + 1
-        else data[job_name] = { count: 1 }
+        if (data[job_name]) { data[job_name].count = data[job_name].count + 1; data[job_name].dd += ppd_jobs[ppd.job_code].price }
+        else data[job_name] = { count: 1, dd: ppd_jobs[ppd.job_code].price }
         data["Daily Dollars"] += ppd_jobs[ppd.job_code].price
     })
 
@@ -122,8 +122,8 @@ Router.get('/user/:uid/:date', async (req, res) => {
         if (!hourly_jobs[hourly.job_code]) return
         let job_name = 'hrly_' + hourly_jobs[hourly.job_code].job_name
         if (!job_name) return
-        if (data[job_name]) data[job_name].count = data[job_name].count + hourly.hours
-        else data[job_name] = { count: hourly.hours, is_hourly: true }
+        if (data[job_name]) { data[job_name].count = data[job_name].count + hourly.hours; data[job_name].dd += hourly_jobs[hourly.job_code].price * hourly.hours }
+        else data[job_name] = { count: hourly.hours, is_hourly: true, dd: hourly_jobs[hourly.job_code].price * hourly.hours }
         data["Daily Dollars"] += hourly_jobs[hourly.job_code].price * hourly.hours
     })
 

@@ -8,7 +8,8 @@ const changeToColumn = {
     isHourly: 'is_hourly',
     price: 'price',
     job_name: 'job_name',
-    job_code: 'job_code'
+    job_code: 'job_code',
+    applies: 'applies'
 }
 
 Router.get('/all', async (req, res) => {
@@ -26,9 +27,13 @@ Router.get('/all', async (req, res) => {
     }
 
     // Organize Data
-    let data = {
-        job_codes: asset_tracking.recordset
-    }
+    let job_codes = [...asset_tracking.recordset]
+
+    for (let i in job_codes)
+        if (job_codes[i].applies) job_codes[i].applies = job_codes[i].applies.split(',')
+        else job_codes[i].applies = []
+
+    let data = { job_codes }
 
     // Return Data
     return res.status(200).json(data)
@@ -49,9 +54,13 @@ Router.get('/full', async (req, res) => {
     }
 
     // Organize Data
-    let data = {
-        job_codes: asset_tracking.recordset
-    }
+    let job_codes = [...asset_tracking.recordset]
+
+    for (let i in job_codes)
+        if (job_codes[i].applies) job_codes[i].applies = job_codes[i].applies.split(',')
+        else job_codes[i].applies = []
+
+    let data = { job_codes }
 
     // Return Data
     return res.status(200).json(data)
@@ -65,7 +74,7 @@ Router.post('/new', async (req, res) => {
     if (!isAdmin) return res.status(403).json({ error: 'User is not an administrator' })
 
     // Get Data
-    const { job_code, job_name, price, isHourly } = req.body
+    const { job_code, job_name, price, isHourly, applies } = req.body
 
     // Data Validation
     let errored = false
@@ -87,7 +96,7 @@ Router.post('/new', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0')`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
@@ -126,6 +135,9 @@ Router.post('/edit', async (req, res) => {
         case 'job_code':
             //no further validation needed
             break;
+        case 'applies':
+            //no further validation needed
+            break;
         default:
             errors.push('Unknown change type')
             break;
@@ -136,7 +148,7 @@ Router.post('/edit', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`)
+    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
