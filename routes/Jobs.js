@@ -9,7 +9,8 @@ const changeToColumn = {
     price: 'price',
     job_name: 'job_name',
     job_code: 'job_code',
-    applies: 'applies'
+    applies: 'applies',
+    isAsset: 'requires_asset'
 }
 
 Router.get('/all', async (req, res) => {
@@ -74,7 +75,7 @@ Router.post('/new', async (req, res) => {
     if (!isAdmin) return res.status(403).json({ error: 'User is not an administrator' })
 
     // Get Data
-    const { job_code, job_name, price, isHourly, applies } = req.body
+    const { job_code, job_name, price, isHourly, isAsset, applies } = req.body
 
     // Data Validation
     let errored = false
@@ -96,7 +97,7 @@ Router.post('/new', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}')`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}', '${isAsset ? '1' : '0'}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
@@ -112,7 +113,7 @@ Router.post('/edit', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!isAdmin && !permissions.edit_jobcodes) return res.status(403).json({ error: 'User is not an administrator' })
+    if (!isAdmin && !permissions.edit_jobcodes) return res.status(403).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
     // Get Data
     const { id, change, value } = req.body
@@ -125,6 +126,10 @@ Router.post('/edit', async (req, res) => {
         case 'isHourly':
             if (!['true', 'false'].includes(value.toLowerCase()))
                 errors.push('isHourly value invalid')
+            break;
+        case 'isAsset':
+            if (!['true', 'false'].includes(value.toLowerCase()))
+                errors.push('isAsset value invalid')
             break;
         case 'price':
             if (isNaN(parseInt(value))) errors.push('Price value was NaN')
@@ -148,7 +153,7 @@ Router.post('/edit', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly
+    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' || change == 'isAsset' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly or isAsset
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
