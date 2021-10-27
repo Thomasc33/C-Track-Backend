@@ -298,7 +298,7 @@ Router.get('/get/:search', async (req, res) => {
 
     // Get Data
 
-    let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${search}'`)
+    let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${search}' OR notes LIKE '%${search}%'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_query.isErrored) {
         // Check for specific errors
@@ -308,13 +308,14 @@ Router.get('/get/:search', async (req, res) => {
     }
 
     // Organize Data
-    let resu
-    if (asset_query.recordset.length === 1) {
-        resu = { info: asset_query.recordset[0] }
+    let resu = []
+    for (let i of asset_query.recordset) {
+        let r
+        r = { type: 'asset', info: i }
 
         // Asset Status History Query
-        let history_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${resu.info.id}' ORDER BY date DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
-        if (asset_query.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
+        let history_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${r.info.id}' ORDER BY date DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (history_query.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
 
         if (!history_query.isErrored && history_query.recordset.length > 0) {
             let his = []
@@ -325,14 +326,53 @@ Router.get('/get/:search', async (req, res) => {
                 else name = `uid: ${i.user_id}`
                 his.push({ name, job_code: i.job_code, date: i.date, id: i.id, notes: i.notes })
             }
-            resu.history = his
+            r.history = his
         }
+        resu.push(r)
     }
-    else resu = { notFound: true }
 
+    let tracker_comment_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE notes LIKE '%${search}%'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (tracker_comment_query.isErrored) {
+        // Check for specific errors
 
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+    }
 
+    for (let i of tracker_comment_query.recordset) {
+        let id = i.asset_id
 
+        let aq = await pool.request().query(`SELECT * FROM assets WHERE id = '${id}'`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (aq.isErrored) {
+            // Check for specific errors
+
+            // If no errors above, return generic Invalid UID Error
+            return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        }
+        if (aq.recordset.length == 0) continue;
+        let r = { type: 'tracker', info: aq.recordset[0] }
+
+        let hq = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${r.info.id}' ORDER BY date DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (hq.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
+
+        if (!hq.isErrored && hq.recordset.length > 0) {
+            let his = []
+            for (let i of hq.recordset) {
+                let name = await pool.request().query(`SELECT name FROM users WHERE id = '${i.user_id}'`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+                if (name.isErrored) return res.status(500).json({ message: `Failed user name query for (${i.user_id})` })
+                if (name.recordset[0] && name.recordset[0].name) name = name.recordset[0].name
+                else name = `uid: ${i.user_id}`
+                his.unshift({ name, job_code: i.job_code, date: i.date, id: i.id, notes: i.notes })
+            }
+            r.history = his
+        }
+
+        resu.push(r)
+    }
+
+    if (resu.length === 0) resu = { notFound: true }
 
     // Return Data
     return res.status(200).json(resu)
