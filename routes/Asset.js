@@ -433,7 +433,6 @@ Router.put('/create', async (req, res) => {
 
     // Get req body
     const { asset_id, model_id } = req.body
-    console.log(asset_id, model_id)
 
     // Data Validation
     let issues = []
@@ -461,6 +460,38 @@ Router.put('/create', async (req, res) => {
     if (asset_query.isErrored) return res.status(500).json({ message: asset_query.error })
 
     // Return
+    return res.status(200).json({ message: 'Success' })
+})
+
+Router.patch('/rename', async (req, res) => {
+    // Get UID from header
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
+
+    // Get req body
+    const { oldName, newName } = req.body
+
+    // Data validation
+    if (!oldName || !newName) return res.status(400).json({ message: 'Missing Information' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Check to see if asset exists
+    let asset_validation_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${oldName}'`).catch(er => { return { isErrored: true, error: er } })
+    if (asset_validation_query.isErrored) return res.status(500).json({ message: 'Error in asset validation query' })
+    if (!asset_validation_query.recordset || asset_validation_query.recordset.length == 0) return res.status(401).json({ message: 'Asset does not exist' })
+
+    // Check to see if new asset exists
+    let asset_dupe_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${newName}'`).catch(er => { return { isErrored: true, error: er } })
+    if (asset_dupe_query.isErrored) return res.status(500).json({ message: 'Error in asset duplicate validation query' })
+    if (asset_dupe_query.recordset && asset_dupe_query.recordset.length != 0) return res.status(402).json({ message: 'Asset already exists' })
+
+    // Rename
+    let rename_query = await pool.request().query(`UPDATE assets SET id = '${newName}' WHERE id = '${oldName}'`).catch(er => { return { isErrored: true, error: er } })
+    if (rename_query.isErrored) return res.status(500).json(rename_query.error)
     return res.status(200).json({ message: 'Success' })
 })
 
