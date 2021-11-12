@@ -153,10 +153,9 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     if (jobs_query.isErrored) return res.status(500).json({ message: 'failed Job query' })
     const hourly_jobs = {}
     const ppd_jobs = {}
-    for (let i of jobs_query.recordset) if (i.is_hourly) hourly_jobs[i.id] = parseInt(i.price); else ppd_jobs[i.id] = parseInt(i.price)
+    for (let i of jobs_query.recordset) if (i.is_hourly) hourly_jobs[i.id] = parseFloat(i.price); else ppd_jobs[i.id] = parseFloat(i.price)
 
     // Get asset and hourly history for the date
-    const dailyDollars = {}
     let asset_query = await pool.request().query(`SELECT job_code, date FROM asset_tracking WHERE user_id = '${uid}' AND date BETWEEN '${from}' AND '${to}'`)
         .catch(er => { return { isErrored: true, error: er } })
     if (asset_query.isErrored) return res.status(500).json({ message: asset_query.error })
@@ -169,7 +168,7 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
 
     for (let i of asset_query.recordset) if (data[i.date]) data[i.date] += ppd_jobs[i.job_code]; else data[i.date] = ppd_jobs[i.job_code]
 
-    for (let i of hourly_query.recordset) if (data[i.date]) data[i.date] += parseInt(i.hours) * hourly_jobs[i.job_code]; else data[i.date] = parseInt(i.hours) * hourly_jobs[i.job_code]
+    for (let i of hourly_query.recordset) if (data[i.date]) data[i.date] += parseFloat(i.hours) * hourly_jobs[i.job_code]; else data[i.date] = parseFloat(i.hours) * hourly_jobs[i.job_code]
 
     return res.status(200).json(data)
 })
