@@ -2,7 +2,6 @@ const express = require('express')
 const Router = express.Router()
 const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
-const jwt_decode = require('jwt-decode')
 const tokenParsing = require('../lib/tokenParsing')
 
 Router.get('/users/daily/:date', async (req, res) => {
@@ -180,7 +179,6 @@ Router.get('/asset/user/:uid/:date', async (req, res) => {
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
-
 
     // Get UID from params
     uid = req.params.uid

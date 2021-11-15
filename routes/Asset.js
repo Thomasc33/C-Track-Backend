@@ -4,6 +4,7 @@ const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 const newAssetStatusCode = require('../settings.json').newAssetStatusCode
+const notifications = require('../lib/notifications')
 
 const typeOfs = {
     asset: 'asset',
@@ -107,6 +108,8 @@ Router.post('/user/new', async (req, res) => {
 
     // Edit asset and set status
     pool.request().query(`UPDATE assets SET status = '${job_code}' WHERE id = '${asset_id}'`)
+
+    notifications.notify(req.headers.authorization, asset_id)
 })
 
 Router.post('/user/edit', async (req, res) => {
