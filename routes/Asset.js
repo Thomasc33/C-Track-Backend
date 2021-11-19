@@ -109,7 +109,11 @@ Router.post('/user/new', async (req, res) => {
     // Edit asset and set status
     pool.request().query(`UPDATE assets SET status = '${job_code}' WHERE id = '${asset_id}'`)
 
-    notifications.notify(req.headers.authorization, asset_id)
+    let status_name_query = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${job_code}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (status_name_query.isErrored) return
+
+    notifications.notify(req.headers.authorization, asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
 })
 
 Router.post('/user/edit', async (req, res) => {
@@ -120,6 +124,7 @@ Router.post('/user/edit', async (req, res) => {
 
     // Get Params
     const { id, change, value } = req.body;
+    let asset_id
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -158,6 +163,8 @@ Router.post('/user/edit', async (req, res) => {
         if (asset_tracker_to_id_query.isErrored) return res.status(500).json(asset_tracker_to_id_query.er)
         if (!asset_tracker_to_id_query.recordset || !asset_tracker_to_id_query.recordset[0]) return res.status(405).json({ message: `Asset id not found in history of '${id}'` })
 
+        asset_id = asset_tracker_to_id_query.recordset[0].asset_id
+
         let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${asset_tracker_to_id_query.recordset[0].asset_id}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (asset_query.isErrored) return res.status(500).json(asset_query.er)
@@ -181,7 +188,15 @@ Router.post('/user/edit', async (req, res) => {
     res.status(200).json({ message: 'Success' })
 
     // Edit asset and set status
-    if (change == 'job') pool.request().query(`UPDATE assets SET status = '${value}' WHERE id = '${id}'`)
+    if (change == 'job') {
+        pool.request().query(`UPDATE assets SET status = '${value}' WHERE id = '${id}'`)
+
+        let status_name_query = await pool.request().query(`SELECT job_name FROM jobs WHERE id = ${value}`)
+            .catch(er => { return { isErrored: true, er: er } })
+        if (status_name_query.isErrored) return
+
+        notifications.notify(req.headers.authorization, asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
+    }
 })
 
 Router.delete('/user/del/:id/:date', async (req, res) => {
@@ -378,7 +393,7 @@ Router.get('/get/:search', async (req, res) => {
     if (resu.length === 0) resu = { notFound: true }
 
     // Return Data
-    return res.status(200).json(resu)
+    return res.status(200).json({ resu, uid })
 })
 
 Router.post('/edit', async (req, res) => {
@@ -396,6 +411,9 @@ Router.post('/edit', async (req, res) => {
     if (!id) issues.push('no asset id')
     if (!change) issues.push('no change type')
 
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
     // if change == model_number, validate the model number
     if (change == 'model_number') {
         let q = await pool.request().query(`SELECT model_number from models`)
@@ -408,9 +426,6 @@ Router.post('/edit', async (req, res) => {
     }
 
     if (issues.length > 0) return res.status(400).json(issues)
-
-    // Establish SQL Connection
-    let pool = await sql.connect(config)
 
     // Get Data
     let asset_query = await pool.request().query(`UPDATE assets SET ${change} = '${value}' WHERE id = '${id}'`)
@@ -496,6 +511,75 @@ Router.patch('/rename', async (req, res) => {
     let rename_query = await pool.request().query(`UPDATE assets SET id = '${newName}' WHERE id = '${oldName}'`).catch(er => { return { isErrored: true, error: er } })
     if (rename_query.isErrored) return res.status(500).json(rename_query.error)
     return res.status(200).json({ message: 'Success' })
+})
+
+Router.post('/watch', async (req, res) => {
+    // Get UID from header
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (!isAdmin && !permissions.watch_assets) return res.status(403).json({ error: 'Permission denied' })
+
+    // Get data from header
+    const { id } = req.body
+
+    // Get current list of watching people on the asset
+    let pool = await sql.connect(config)
+    const current_list_query = await pool.request().query(`SELECT watching FROM assets WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (current_list_query.isErrored) return res.status(500).json({ er: current_list_query.er })
+    if (!current_list_query.recordset || !current_list_query.recordset[0]) return res.status(401).json({ er: 'Asset not found' })
+
+    // Add to list
+    let newString = ''
+    if (current_list_query.recordset[0].watching) newString = `${current_list_query.recordset[0].watching},${uid}`
+    else newString = `${uid}`
+
+    // Removes duplicates
+    let s = new Set(newString.split(','))
+    newString = [...s].map(m => m).join(',')
+
+    // Send back
+    const update_query = await pool.request().query(`UPDATE assets SET watching = '${newString}' WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (update_query.isErrored) return res.status(500).json({ er: update_query.er })
+
+    return res.status(200).json({ message: 'success' })
+})
+
+Router.post('/unwatch', async (req, res) => {
+    // Get UID from header
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (!isAdmin && !permissions.watch_assets) return res.status(403).json({ error: 'Permission denied' })
+
+    // Get data from header
+    const { id } = req.body
+
+    // Get current list of watching people on the asset
+    let pool = await sql.connect(config)
+    const current_list_query = await pool.request().query(`SELECT watching FROM assets WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (current_list_query.isErrored) return res.status(500).json({ er: current_list_query.er })
+    if (!current_list_query.recordset || !current_list_query.recordset[0]) return res.status(401).json({ er: 'Asset not found' })
+
+    // Remove From List
+    let newString = ''
+    if (!current_list_query.recordset[0].watching || current_list_query.recordset[0].watching == uid) newString = ''
+    else if (current_list_query.recordset[0].watching.includes(',')) {
+        for (let i of current_list_query.recordset[0].watching.split(',')) {
+            if (newString !== '') newstring += ','
+            newString += i
+        }
+    }
+
+    // Send back
+    const update_query = await pool.request().query(`UPDATE assets SET watching = '${newString}' WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (update_query.isErrored) return res.status(500).json({ er: update_query.er })
+
+    return res.status(200).json({ message: 'success' })
 })
 
 module.exports = Router
