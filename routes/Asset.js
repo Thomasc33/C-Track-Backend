@@ -83,17 +83,17 @@ Router.post('/user/new', async (req, res) => {
     let job_code_query = await pool.request().query(`SELECT * FROM jobs WHERE id = ${job_code}`)
         .catch(er => { return { isErrored: true, er: er } })
     if (job_code_query.isErrored) return res.status(500).json(job_code_query.er)
-    if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(400).json({ message: `Invalid job code '${job_code}'` })
+    if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(401).json({ message: `Invalid job code '${job_code}'` })
 
     let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${asset_id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (asset_query.isErrored) return res.status(500).json(asset_query.er)
-    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(405).json({ message: `Asset id not found '${asset_id}'` })
+    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(401).json({ message: `Asset id not found '${asset_id}'` })
 
     let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (model_query.isErrored) return res.status(500).json(model_query.er)
-    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
+    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(401).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
     if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(406).json({ message: 'Job code doesnt apply to model type' })
 
     // Send to DB
