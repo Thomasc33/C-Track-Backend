@@ -24,7 +24,7 @@ Router.post('/asset', async (req, res) => {
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (model_query.isErrored) return res.status(500).json({ error: model_query.error })
     const models = {}
-    for (let i of model_query.recordset) models[i.model_number] = i.name.toLowerCase()
+    for (let i of model_query.recordset) models[i.model_number.toLowerCase()] = i.name.toLowerCase()
 
     const assets_query = await pool.request().query(`SELECT id FROM assets`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
@@ -35,15 +35,17 @@ Router.post('/asset', async (req, res) => {
     let validInserts = []
     for (let i of data) {
         // Check to see if data was provided
-        if (!i.id || !i.model_number) { failedAssets.push({ id: `${i.id || i.model_number}`, reason: 'Missing Information' }); continue; }
+        if (!i.id || !i.model_number) continue
 
         // Ensure model exists
         if (!models[i.model_number]) {
             let found = false
-            for (let j in models) if (models[j] === i.model_number.toLowerCase()) {
-                i.model_number = j
-                found = true
-                break;
+            for (let j in models) {
+                if (j === i.model_number.toLowerCase()) {
+                    i.model_number = j
+                    found = true
+                    break;
+                }
             }
             if (!found) { failedAssets.push({ id: `${i.id}`, reason: `Model Number ${i.model_number} doesnt exist` }); continue; }
         }
@@ -55,6 +57,7 @@ Router.post('/asset', async (req, res) => {
         validInserts.push(i)
         assets.add(i.id)
     }
+    console.log(failedAssets)
 
     if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import', failed: failedAssets })
 
