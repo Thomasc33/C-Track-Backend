@@ -46,6 +46,14 @@ Router.get('/user/:date', async (req, res) => {
         records: asset_tracking.recordset
     }
 
+    for (let ind in data.records) {
+        let i = data.records[ind]
+        let q = await pool.request().query(`SELECT model_number FROM assets WHERE id = '${i.asset_id}'`)
+        if (!q.recordset[0]) continue
+        let q2 = await pool.request().query(`SELECT image FROM models WHERE model_number = '${q.recordset[0].model_number}'`)
+        data.records[ind].image = q2.recordset[0].image
+    }
+
     // Return Data
     return res.status(200).json(data)
 })
@@ -97,7 +105,7 @@ Router.post('/user/new', async (req, res) => {
     if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(406).json({ message: 'Job code doesnt apply to model type' })
 
     // Send to DB
-    let result = await pool.request().query(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
+    let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
@@ -342,7 +350,7 @@ Router.get('/get/:search', async (req, res) => {
                 if (name.isErrored) return res.status(500).json({ message: `Failed user name query for (${i.user_id})` })
                 if (name.recordset[0] && name.recordset[0].name) name = name.recordset[0].name
                 else name = `uid: ${i.user_id}`
-                his.push({ name, job_code: i.job_code, date: i.date, id: i.id, notes: i.notes })
+                his.push({ name, job_code: i.job_code, date: i.date, time: i.time, id: i.id, notes: i.notes })
             }
             r.history = his
         }
@@ -374,7 +382,6 @@ Router.get('/get/:search', async (req, res) => {
 
         let hq = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${r.info.id}' ORDER BY date DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
         if (hq.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
-
         if (!hq.isErrored && hq.recordset.length > 0) {
             let his = []
             for (let i of hq.recordset) {
@@ -382,7 +389,7 @@ Router.get('/get/:search', async (req, res) => {
                 if (name.isErrored) return res.status(500).json({ message: `Failed user name query for (${i.user_id})` })
                 if (name.recordset[0] && name.recordset[0].name) name = name.recordset[0].name
                 else name = `uid: ${i.user_id}`
-                his.unshift({ name, job_code: i.job_code, date: i.date, id: i.id, notes: i.notes })
+                his.unshift({ name, job_code: i.job_code, date: i.date, id: i.id, time: i.time, notes: i.notes })
             }
             r.history = his
         }
@@ -416,9 +423,10 @@ Router.post('/edit', async (req, res) => {
 
     // if change == model_number, validate the model number
     if (change == 'model_number') {
-        let q = await pool.request().query(`SELECT model_number from models`)
+        let q = await pool.request().query(`SELECT model_number from models WHERE model_number = '${value}'`)
             .catch(er => { return { isErrored: true, error: er } })
         if (q.isErrored) return res.status(500).json({ message: 'failed to query model numbers', er: q.error })
+        console.log(q, value)
         let found = false
         for (let i of q.recordset)
             if (i.model_number == value) found = true
@@ -465,7 +473,6 @@ Router.put('/create', async (req, res) => {
     // Check to see if model exists
     let model_query = await pool.request().query(`SELECT model_number FROM models WHERE model_number = '${model_id}'`).catch(er => { return { isErrored: true, error: er } })
     if (model_query.isErrored) return res.status(500).json({ message: `Error in model validation query\n${model_query.error}` })
-    console.log(model_query)
     if (!model_query.recordset) return res.status(400).json({ message: 'Model Does not exist' })
 
     // Check to see if asset exists
