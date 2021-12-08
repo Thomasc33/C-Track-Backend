@@ -8,15 +8,15 @@ Router.get('/user', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
     // Data validation for UID. Check for UID, and Check if UID exists
-    if (!uid || uid == '') return res.status(400).json({ code: 400, message: 'No UID given' })
+    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
+    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
 
     // Get Data
 
@@ -27,7 +27,7 @@ Router.get('/user', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
     }
 
     let hourly_tracking = await pool.request().query(`SELECT job_code, hours FROM hourly_tracking WHERE user_id = '${uid}' AND date = '${getDate(Date.now())}'`)
@@ -36,7 +36,7 @@ Router.get('/user', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Hourly Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Hourly Tracking Query Error' })
     }
 
     let job_codes = await pool.request().query(`SELECT * FROM jobs`)

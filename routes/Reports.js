@@ -8,8 +8,8 @@ Router.get('/users/daily/:date', async (req, res) => {
     // Check token using toUid function
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.view_reports) return res.status(403).json({ message: 'missing permission' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
 
     // Get Date
     const date = req.params.date
@@ -54,8 +54,8 @@ Router.get('/users/daily/:date', async (req, res) => {
 Router.get('/user/:uid/:date', async (req, res) => {
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.view_reports) return res.status(403).json({ message: 'missing permission' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -66,9 +66,9 @@ Router.get('/user/:uid/:date', async (req, res) => {
 
     // Data validation for UID. Check for UID, and Check if UID exists
     uid = req.params.uid
-    if (!uid || uid == '') return res.status(400).json({ code: 400, message: 'No UID given' })
+    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
+    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
 
     // Get Data
 
@@ -79,7 +79,7 @@ Router.get('/user/:uid/:date', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
     }
 
     let hourly_tracking = await pool.request().query(`SELECT job_code, hours FROM hourly_tracking WHERE user_id = '${uid}' AND date = '${date}'`)
@@ -88,7 +88,7 @@ Router.get('/user/:uid/:date', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Hourly Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Hourly Tracking Query Error' })
     }
 
     let job_codes = await pool.request().query(`SELECT * FROM jobs`)
@@ -130,8 +130,8 @@ Router.get('/user/:uid/:date', async (req, res) => {
 Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.view_reports) return res.status(403).json({ message: 'missing permission' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -140,9 +140,9 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     uid = req.params.uid
     let from = req.params.from
     let to = req.params.to
-    if (!uid || uid == '') return res.status(400).json({ code: 400, message: 'No UID given' })
+    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
+    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
 
     // Get Job Codes
     let jobs_query = await pool.request().query(`SELECT * FROM jobs`)
@@ -175,8 +175,8 @@ Router.get('/asset/user/:uid/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get UID from params
     uid = req.params.uid
@@ -194,7 +194,7 @@ Router.get('/asset/user/:uid/:date', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
     }
 
     // Organize Data
@@ -210,8 +210,8 @@ Router.post('/asset/user/:uid/new', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get UID from params
     uid = req.params.uid
@@ -244,7 +244,7 @@ Router.post('/asset/user/:uid/new', async (req, res) => {
     let result = await pool.request().query(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        return res.status(401).json({ message: 'Unsuccessful', error: result.error })
+        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
     }
 
     // Return
@@ -255,8 +255,8 @@ Router.post('/asset/user/:uid/edit', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get Params
     uid = req.params.uid
@@ -292,7 +292,7 @@ Router.post('/asset/user/:uid/edit', async (req, res) => {
     let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        return res.status(401).json({ message: 'Unsuccessful', error: result.error })
+        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
     }
 
     // Return
@@ -303,8 +303,8 @@ Router.delete('/asset/user/:uid/del/:id/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get params
     uid = req.params.uid
@@ -315,13 +315,13 @@ Router.delete('/asset/user/:uid/del/:id/:date', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Data validation for UID. Check for UID, and Check if UID exists
-    if (!uid || uid == '') return res.status(400).json({ code: 400, message: 'No UID given' })
+    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
+    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
 
-    if (!id || id == '') return res.status(400).json({ code: 400, message: 'No ID given' })
+    if (!id || id == '') return res.status(400).json({ message: 'No ID given' })
     resu = await pool.request().query(`SELECT id FROM asset_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
-    if (resu == 'Invalid ID') return res.status(400).json({ code: 400, message: 'Invalid ID or not found' })
+    if (resu == 'Invalid ID') return res.status(400).json({ message: 'Invalid ID or not found' })
 
     let asset_tracking = await pool.request().query(`DELETE FROM asset_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
@@ -329,7 +329,7 @@ Router.delete('/asset/user/:uid/del/:id/:date', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
     }
 
     // Return Data
@@ -341,8 +341,8 @@ Router.get('/hourly/user/:uid/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get UID from header
     uid = req.params.uid
@@ -362,7 +362,7 @@ Router.get('/hourly/user/:uid/:date', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
     }
 
     // Organize Data
@@ -378,8 +378,8 @@ Router.post('/hourly/user/:uid/new', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get Params
     uid = req.params.uid
@@ -418,7 +418,7 @@ Router.post('/hourly/user/:uid/new', async (req, res) => {
     let result = await pool.request().query(`INSERT INTO hourly_tracking (job_code, user_id, start_time, end_time, notes, hours, date) VALUES ('${job_code}', '${uid}', '${startTime}', '${endTime}', ${notes ? `'${notes}'` : 'null'}, '${total_hours}', '${date}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        return res.status(401).json({ message: 'Unsuccessful', error: result.error })
+        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
     }
 
     // Return
@@ -429,8 +429,8 @@ Router.post('/hourly/user/:uid/edit', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get Params
     uid = req.params.uid
@@ -466,7 +466,7 @@ Router.post('/hourly/user/:uid/edit', async (req, res) => {
     let result = await pool.request().query(`UPDATE hourly_tracking SET ${typeOfToColumn[change]} = '${value}'${total_hours ? `, hours = ${total_hours}` : ''} WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        return res.status(401).json({ message: 'Unsuccessful', error: result.error })
+        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
     }
 
     // Return
@@ -477,8 +477,8 @@ Router.delete('/hourly/user/:uid/del/:id/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(403).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(403).json({ message: 'Access Denied' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
     // Get Params
     uid = req.params.uid
@@ -489,13 +489,13 @@ Router.delete('/hourly/user/:uid/del/:id/:date', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Data validation for UID. Check for UID, and Check if UID exists
-    if (!uid || uid == '') return res.status(400).json({ code: 400, message: 'No UID given' })
+    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ code: 400, message: 'Invalid UID or not found' })
+    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
 
-    if (!id || id == '') return res.status(400).json({ code: 400, message: 'No ID given' })
+    if (!id || id == '') return res.status(400).json({ message: 'No ID given' })
     resu = await pool.request().query(`SELECT id FROM hourly_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
-    if (resu == 'Invalid ID') return res.status(400).json({ code: 400, message: 'Invalid ID or not found' })
+    if (resu == 'Invalid ID') return res.status(400).json({ message: 'Invalid ID or not found' })
 
     let hourly_tracking = await pool.request().query(`DELETE FROM hourly_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
@@ -503,7 +503,7 @@ Router.delete('/hourly/user/:uid/del/:id/:date', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
     }
 
     // Return Data

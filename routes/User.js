@@ -24,8 +24,8 @@ Router.get('/verify', async (req, res) => {
     const appid = decoded.appid
 
     //validate tenant and appid
-    if (tenant !== require('../settings.json').tenantId) return res.status(401).json({ error: 'Bad domain' })
-    if (appid !== require('../settings.json').appid) return res.status(401).json({ error: 'bad appid' })
+    if (tenant !== require('../settings.json').tenantId) return res.status(400).json({ error: 'Bad domain' })
+    if (appid !== require('../settings.json').appid) return res.status(400).json({ error: 'bad appid' })
 
     //grab username
     const username = email.substr(0, email.indexOf('@'))
@@ -49,7 +49,7 @@ Router.get('/verify', async (req, res) => {
 Router.get('/permissions', async (req, res) => {
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (errored) return res.status(401).json({ error: er })
+    if (errored) return res.status(400).json({ error: er })
     res.status(200).json({ uid, isAdmin, permissions })
 })
 
@@ -57,7 +57,7 @@ Router.get('/all', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (!isAdmin && !permissions.view_users) return res.status(403).json({ error: 'Forbidden' })
+    if (!isAdmin && !permissions.view_users) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -83,7 +83,7 @@ Router.get('/all/admin', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (!isAdmin) return res.status(403).json({ error: 'Forbidden' })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -100,7 +100,7 @@ Router.get('/names', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (!isAdmin && !permissions.view_users) return res.status(403).json({ error: 'Forbidden' })
+    if (!isAdmin && !permissions.view_users) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -118,7 +118,7 @@ Router.post('/perm/edit', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (!isAdmin && !permissions.edit_users) return res.status(403).json({ error: 'Forbidden' })
+    if (!isAdmin && !permissions.edit_users) return res.status(401).json({ error: 'Forbidden' })
 
     // Data validation
     const { id, perms } = req.body
@@ -146,7 +146,7 @@ Router.post('/perm/edit/admin', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (!isAdmin) return res.status(403).json({ error: 'Forbidden' })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Data validation
     const { id } = req.body
@@ -155,7 +155,7 @@ Router.post('/perm/edit/admin', async (req, res) => {
     if (![0, 1].includes(setAdminTo)) return res.status(400).json({ error: 'setAdminTo is not binary' })
 
     // Block user from removing admin from themselves
-    if (uid == id) return res.status(401).json({ message: 'Unable to remove admin from yourself' })
+    if (uid == id) return res.status(403).json({ message: 'Unable to remove admin from yourself' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)

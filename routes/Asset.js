@@ -21,7 +21,7 @@ Router.get('/user/:date', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
     let date = req.params.date
@@ -62,7 +62,7 @@ Router.post('/user/new', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
     // Get Params
     const data = req.body;
     let { date, job_code, asset_id, notes } = data
@@ -91,18 +91,19 @@ Router.post('/user/new', async (req, res) => {
     let job_code_query = await pool.request().query(`SELECT * FROM jobs WHERE id = ${job_code}`)
         .catch(er => { return { isErrored: true, er: er } })
     if (job_code_query.isErrored) return res.status(500).json(job_code_query.er)
-    if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(401).json({ message: `Invalid job code '${job_code}'` })
+    if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(400).json({ message: `Invalid job code '${job_code}'` })
 
-    let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${asset_id}'`)
+    let asset_query = await pool.request().query(`SELECT id, locked FROM assets WHERE id = '${asset_id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (asset_query.isErrored) return res.status(500).json(asset_query.er)
-    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(401).json({ message: `Asset id not found '${asset_id}'` })
+    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_id}'` })
+    if (asset_query.recordset[0].locked) return res.status(403).json({ message: 'Asset is Locked' })
 
     let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (model_query.isErrored) return res.status(500).json(model_query.er)
-    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(401).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
-    if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(406).json({ message: 'Job code doesnt apply to model type' })
+    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
+    if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
 
     // Send to DB
     let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`)
@@ -128,7 +129,7 @@ Router.post('/user/edit', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Get Params
     const { id, change, value } = req.body;
@@ -169,27 +170,28 @@ Router.post('/user/edit', async (req, res) => {
         let asset_tracker_to_id_query = await pool.request().query(`SELECT asset_id FROM asset_tracking WHERE id = '${id}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (asset_tracker_to_id_query.isErrored) return res.status(500).json(asset_tracker_to_id_query.er)
-        if (!asset_tracker_to_id_query.recordset || !asset_tracker_to_id_query.recordset[0]) return res.status(405).json({ message: `Asset id not found in history of '${id}'` })
+        if (!asset_tracker_to_id_query.recordset || !asset_tracker_to_id_query.recordset[0]) return res.status(500).json({ message: `Asset id not found in history of '${id}'` })
 
         asset_id = asset_tracker_to_id_query.recordset[0].asset_id
 
-        let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${asset_tracker_to_id_query.recordset[0].asset_id}'`)
+        let asset_query = await pool.request().query(`SELECT id, locked FROM assets WHERE id = '${asset_tracker_to_id_query.recordset[0].asset_id}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (asset_query.isErrored) return res.status(500).json(asset_query.er)
-        if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(405).json({ message: `Asset id not found '${asset_tracker_to_id_query.recordset[0].asset_id}'` })
+        if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_tracker_to_id_query.recordset[0].asset_id}'` })
+        if (asset_query.recordset[0].locked) return res.status(403).json({ message: 'Asset is Locked' })
 
         let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (model_query.isErrored) return res.status(500).json(model_query.er)
         if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${id}'` })
-        if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(406).json({ message: 'Job code doesnt apply to model type' })
+        if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
     }
 
     // Send to DB
     let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        return res.status(401).json({ message: 'Unsuccessful', error: result.error })
+        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
     }
 
     // Return
@@ -211,7 +213,7 @@ Router.delete('/user/del/:id/:date', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Get Params
     const id = req.params.id
@@ -246,7 +248,7 @@ Router.get('/fetch/:id', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
     let id = req.params.id
@@ -279,7 +281,7 @@ Router.post('/catalog', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -314,7 +316,7 @@ Router.get('/get/:search', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
     const search = req.params.search
@@ -407,8 +409,8 @@ Router.post('/edit', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!isAdmin && !permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
     //Get date from header
     const { id, change, value } = req.body
@@ -453,7 +455,7 @@ Router.put('/create', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
 
     // Get req body
@@ -491,8 +493,8 @@ Router.patch('/rename', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!isAdmin && !permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
     // Get req body
     const { oldName, newName } = req.body
@@ -506,12 +508,12 @@ Router.patch('/rename', async (req, res) => {
     // Check to see if asset exists
     let asset_validation_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${oldName}'`).catch(er => { return { isErrored: true, error: er } })
     if (asset_validation_query.isErrored) return res.status(500).json({ message: 'Error in asset validation query' })
-    if (!asset_validation_query.recordset || asset_validation_query.recordset.length == 0) return res.status(401).json({ message: 'Asset does not exist' })
+    if (!asset_validation_query.recordset || asset_validation_query.recordset.length == 0) return res.status(400).json({ message: 'Asset does not exist' })
 
     // Check to see if new asset exists
     let asset_dupe_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${newName}'`).catch(er => { return { isErrored: true, error: er } })
     if (asset_dupe_query.isErrored) return res.status(500).json({ message: 'Error in asset duplicate validation query' })
-    if (asset_dupe_query.recordset && asset_dupe_query.recordset.length != 0) return res.status(402).json({ message: 'Asset already exists' })
+    if (asset_dupe_query.recordset && asset_dupe_query.recordset.length != 0) return res.status(400).json({ message: 'Asset already exists' })
 
     // Rename
     let rename_query = await pool.request().query(`UPDATE assets SET id = '${newName}' WHERE id = '${oldName}'`).catch(er => { return { isErrored: true, error: er } })
@@ -523,8 +525,8 @@ Router.post('/watch', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!isAdmin && !permissions.watch_assets) return res.status(403).json({ error: 'Permission denied' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.watch_assets) return res.status(401).json({ error: 'Permission denied' })
 
     // Get data from header
     const { id } = req.body
@@ -534,7 +536,7 @@ Router.post('/watch', async (req, res) => {
     const current_list_query = await pool.request().query(`SELECT watching FROM assets WHERE id = '${id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (current_list_query.isErrored) return res.status(500).json({ er: current_list_query.er })
-    if (!current_list_query.recordset || !current_list_query.recordset[0]) return res.status(401).json({ er: 'Asset not found' })
+    if (!current_list_query.recordset || !current_list_query.recordset[0]) return res.status(400).json({ er: 'Asset not found' })
 
     // Add to list
     let newString = ''
@@ -557,8 +559,8 @@ Router.post('/unwatch', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!isAdmin && !permissions.watch_assets) return res.status(403).json({ error: 'Permission denied' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.watch_assets) return res.status(401).json({ error: 'Permission denied' })
 
     // Get data from header
     const { id } = req.body
@@ -568,7 +570,7 @@ Router.post('/unwatch', async (req, res) => {
     const current_list_query = await pool.request().query(`SELECT watching FROM assets WHERE id = '${id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (current_list_query.isErrored) return res.status(500).json({ er: current_list_query.er })
-    if (!current_list_query.recordset || !current_list_query.recordset[0]) return res.status(401).json({ er: 'Asset not found' })
+    if (!current_list_query.recordset || !current_list_query.recordset[0]) return res.status(400).json({ er: 'Asset not found' })
 
     // Remove From List
     let newString = ''
@@ -584,6 +586,60 @@ Router.post('/unwatch', async (req, res) => {
     const update_query = await pool.request().query(`UPDATE assets SET watching = '${newString}' WHERE id = '${id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (update_query.isErrored) return res.status(500).json({ er: update_query.er })
+
+    return res.status(200).json({ message: 'success' })
+})
+
+Router.post('/lock', async (req, res) => {
+    // Get UID from header
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
+
+    // Get data from header
+    const { id } = req.body
+
+    // Get current list of watching people on the asset
+    let pool = await sql.connect(config)
+
+    // Ensure ID exists
+    const validation_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (validation_query.isErrored) return res.status(500).json({ message: validation_query.er })
+    if (validation_query.recordset.length > 1) return res.status(400).json({ message: 'Asset not found' })
+
+    // Query
+    const update_query = await pool.request().query(`UPDATE assets SET locked = '1' WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (update_query.isErrored) return res.status(500).json({ message: update_query.er })
+
+    return res.status(200).json({ message: 'success' })
+})
+
+Router.post('/unlock', async (req, res) => {
+    // Get UID from header
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
+
+    // Get data from header
+    const { id } = req.body
+
+    // Get current list of watching people on the asset
+    let pool = await sql.connect(config)
+
+    // Ensure ID exists
+    const validation_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (validation_query.isErrored) return res.status(500).json({ message: validation_query.er })
+    if (validation_query.recordset.length > 1) return res.status(400).json({ message: 'Asset not found' })
+
+    // Query
+    const update_query = await pool.request().query(`UPDATE assets SET locked = '1' WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (update_query.isErrored) return res.status(500).json({ message: update_query.er })
 
     return res.status(200).json({ message: 'success' })
 })

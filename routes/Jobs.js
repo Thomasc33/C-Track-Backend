@@ -24,7 +24,7 @@ Router.get('/all', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Unable to get job codes' })
+        return res.status(400).json({ message: 'Unable to get job codes' })
     }
 
     // Organize Data
@@ -51,7 +51,7 @@ Router.get('/full', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Unable to get job codes' })
+        return res.status(400).json({ message: 'Unable to get job codes' })
     }
 
     // Organize Data
@@ -69,10 +69,10 @@ Router.get('/full', async (req, res) => {
 
 Router.post('/new', async (req, res) => {
     // Get UID from token header and check for admin
-    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!isAdmin) return res.status(403).json({ error: 'User is not an administrator' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
     // Get Data
     const { job_code, job_name, price, isHourly, isAsset, applies } = req.body
@@ -103,7 +103,7 @@ Router.post('/new', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Unable to get job codes' })
+        return res.status(400).json({ message: 'Unable to get job codes' })
     }
     return res.status(200).json({ message: 'success' })
 })
@@ -112,8 +112,8 @@ Router.post('/edit', async (req, res) => {
     // Get UID from token header and check for admin
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(401).json({ error: uid.er })
-    if (!isAdmin && !permissions.edit_jobcodes) return res.status(403).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
     // Get Data
     const { id, change, value } = req.body
@@ -159,7 +159,7 @@ Router.post('/edit', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Unable to get job codes' })
+        return res.status(400).json({ message: 'Unable to get job codes' })
     }
     return res.status(200).json({ message: 'success' })
 })
