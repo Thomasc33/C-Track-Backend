@@ -103,7 +103,7 @@ Router.post('/user/new', async (req, res) => {
         .catch(er => { return { isErrored: true, er: er } })
     if (model_query.isErrored) return res.status(500).json(model_query.er)
     if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
-    if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(asset_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
+    // if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(asset_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
 
     // Send to DB
     let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`)
