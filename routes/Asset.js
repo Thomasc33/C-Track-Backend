@@ -426,7 +426,6 @@ Router.post('/edit', async (req, res) => {
         let q = await pool.request().query(`SELECT model_number from models WHERE model_number = '${value}'`)
             .catch(er => { return { isErrored: true, error: er } })
         if (q.isErrored) return res.status(500).json({ message: 'failed to query model numbers', er: q.error })
-        console.log(q, value)
         let found = false
         for (let i of q.recordset)
             if (i.model_number == value) found = true

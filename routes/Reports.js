@@ -38,7 +38,6 @@ Router.get('/users/daily/:date', async (req, res) => {
 
     for (let i of asset_query.recordset) dailyDollars[i.user_id] ? dailyDollars[i.user_id] += parseFloat(ppd_jobs[i.job_code]) : dailyDollars[i.user_id] = parseFloat(ppd_jobs[i.job_code])
     for (let i of hourly_query.recordset) dailyDollars[i.user_id] ? dailyDollars[i.user_id] += parseFloat(hourly_jobs[i.job_code]) * parseFloat(i.hours) : dailyDollars[i.user_id] = parseFloat(hourly_jobs[i.job_code]) * parseFloat(i.hours)
-    console.log(dailyDollars)
     // Get names associated with uid
     let name_query = await pool.request().query(`SELECT name, id FROM users`)
         .catch(er => { return { isErrored: true, error: er } })
@@ -117,7 +116,6 @@ Router.get('/user/:uid/:date', async (req, res) => {
     })
 
     hourly_tracking.recordset.forEach(hourly => {
-        console.log(hourly)
         if (!hourly_jobs[hourly.job_code]) return
         let job_name = 'hrly_' + hourly_jobs[hourly.job_code].job_name
         if (!job_name) return

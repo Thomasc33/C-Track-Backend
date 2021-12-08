@@ -57,7 +57,6 @@ Router.post('/asset', async (req, res) => {
         validInserts.push(i)
         assets.add(i.id)
     }
-    console.log(failedAssets)
 
     if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import', failed: failedAssets })
 
@@ -94,7 +93,6 @@ Router.post('/model', async (req, res) => {
     for (let i of modelQuery.recordset) {
         models.add(i.model_number)
     }
-    console.log(models)
 
     // Data validation
     let validInserts = []

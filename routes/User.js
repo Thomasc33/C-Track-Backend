@@ -151,7 +151,6 @@ Router.post('/perm/edit/admin', async (req, res) => {
     // Data validation
     const { id } = req.body
     const setAdminTo = req.body.isAdmin
-    console.log(id, setAdminTo)
     if (!id || isNaN(parseInt(id))) return res.status(400).json({ error: 'Invalid UID provided' })
     if (![0, 1].includes(setAdminTo)) return res.status(400).json({ error: 'setAdminTo is not binary' })
 
