@@ -103,7 +103,7 @@ Router.post('/user/new', async (req, res) => {
         .catch(er => { return { isErrored: true, er: er } })
     if (model_query.isErrored) return res.status(500).json(model_query.er)
     if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
-    if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
+    if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(asset_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
 
     // Send to DB
     let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`)
@@ -185,6 +185,14 @@ Router.post('/user/edit', async (req, res) => {
         if (model_query.isErrored) return res.status(500).json(model_query.er)
         if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${id}'` })
         if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
+    }
+    else if (change == 'asset') {
+        // Validate asset exists and isnt locked
+        let asset_query = await pool.request().query(`SELECT id, locked FROM assets WHERE id = '${value}'`)
+            .catch(er => { return { isErrored: true, er: er } })
+        if (asset_query.isErrored) return res.status(500).json(asset_query.er)
+        if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${value}'` })
+        if (asset_query.recordset[0].locked) return res.status(403).json({ message: 'Asset is Locked' })
     }
 
     // Send to DB
@@ -637,7 +645,7 @@ Router.post('/unlock', async (req, res) => {
     if (validation_query.recordset.length > 1) return res.status(400).json({ message: 'Asset not found' })
 
     // Query
-    const update_query = await pool.request().query(`UPDATE assets SET locked = '1' WHERE id = '${id}'`)
+    const update_query = await pool.request().query(`UPDATE assets SET locked = '0' WHERE id = '${id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (update_query.isErrored) return res.status(500).json({ message: update_query.er })
 
