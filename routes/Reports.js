@@ -603,6 +603,7 @@ Router.post('/generate', async (req, res) => {
         if (asset_tracking_query) for (let i of asset_tracking_query) if (i.user_id == id) assetJobCodes.add(i.job_code)
         if (hourly_tracking_query) for (let i of hourly_tracking_query) if (i.user_id == id) hourlyJobCodes.add(i.job_code)
 
+        let totalrevenue = 0.0
 
         assetJobCodes.forEach(jc => {
             //count totals
@@ -620,12 +621,14 @@ Router.post('/generate', async (req, res) => {
                 row[1] = totCount
                 row[2] = parseFloat(job_codes[jc].price) * parseFloat(totCount)
                 d.push(row)
+                totalrevenue += row[2]
             }
             else {
                 let count = 0
                 for (let i of asset_tracking_query)
                     if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count++
                 d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * parseFloat(count)])
+                totalrevenue += parseFloat(job_codes[jc].price) * parseFloat(count)
             }
         })
 
@@ -633,26 +636,31 @@ Router.post('/generate', async (req, res) => {
             //count totals
             if (range) {
                 let row = [job_codes[jc].name, 0, 0]
-                let totCount = 0
+                let totCount = 0.0
                 for (let d of dates) {
                     console.log(d)
-                    let count = 0
+                    let count = 0.0
                     for (let i of hourly_tracking_query)
-                        if (i.user_id == id && i.date.toISOString().split('T')[0] == d.toISOString().split('T')[0] && i.job_code == jc) count++
-                    row.push(count, parseFloat(job_codes[jc].price) * parseFloat(count))
+                        if (i.user_id == id && i.date.toISOString().split('T')[0] == d.toISOString().split('T')[0] && i.job_code == jc) count += i.hours
+                    row.push(count, parseFloat(job_codes[jc].price) * count)
                     totCount += count
                 }
                 row[1] = totCount
-                row[2] = parseFloat(job_codes[jc].price) * parseFloat(totCount)
+                row[2] = parseFloat(job_codes[jc].price) * totCount
                 d.push(row)
+                totalrevenue += row[2]
             }
             else {
                 let count = 0
                 for (let i of hourly_tracking_query)
-                    if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count++
-                d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * parseFloat(count)])
+                    if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
+                d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * count])
+                totalrevenue += parseFloat(job_codes[jc].price) * count
             }
         })
+
+        // Totals section
+        d.push([], ['Total Revenue', totalrevenue])
 
         return d
     }
