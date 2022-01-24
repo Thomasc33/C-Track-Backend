@@ -510,6 +510,158 @@ Router.delete('/hourly/user/:uid/del/:id/:date', async (req, res) => {
     return res.status(200).json({ message: 'Success' })
 })
 
+Router.post('/generate', async (req, res) => {
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
+
+    const { date, range } = req.body
+
+    console.log(date, range)
+    console.log(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+        .then(d => d.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (asset_tracking_query && asset_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
+
+    let hourly_tracking_query = await pool.request().query(`SELECT * FROM hourly_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+        .then(d => d.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (hourly_tracking_query && hourly_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching hourly tracking records' })
+
+    if (!asset_tracking_query && !hourly_tracking_query) return res.status(409).json({ message: 'No data to report on' })
+
+    // Get user name object
+    let usernames = {}
+    let user_query = await pool.request().query(`SELECT id,name FROM users`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (user_query.isErrored) return res.status(500).json({ message: 'Error fetching users' })
+    for (let i of user_query.recordset) usernames[i.id] = i.name
+
+
+    // Get Job Code Names
+    let job_codes = {}
+    let job_code_query = await pool.request().query(`SELECT id,job_code,price FROM jobs`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price }
+
+
+    // The fun stuff :)
+    let data = []
+
+    /**
+     * Data
+     * [
+     *  [name]
+     *  ['Job Code', total-count, total-$, Date-Count, $, repeat for each date in range]
+     *  [do for each job code used by the user]
+     *  [break]
+     *  [next person]
+     * ]
+     */
+
+    let applicableUsers = new Set()
+    if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
+    if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
+
+    function getUserData(id) {
+        let d = []
+
+        // Get list of dates
+        let dates = []
+        if (range) {
+            let start = new Date(date)
+            let end = new Date(range)
+            while (start <= end) {
+                dates.push(new Date(start))
+                start = start.addDays(1)
+            }
+        }
+
+        // Start off the CSV Data
+        d.push([usernames[id] || id])
+        d.push(['Job Code'])
+
+        if (range) {
+            d[1].push('Total Count', 'Total Revenue')
+            for (let i of dates) {
+                let s = i.toISOString().split('T')[0].substring(5)
+                d[1].push(`${s} #`, `${s} $`)
+            }
+        } else {
+            d[1].push(`Count`, 'Revenue')
+        }
+
+        let assetJobCodes = new Set()
+        let hourlyJobCodes = new Set()
+        if (asset_tracking_query) for (let i of asset_tracking_query) if (i.user_id == id) assetJobCodes.add(i.job_code)
+        if (hourly_tracking_query) for (let i of hourly_tracking_query) if (i.user_id == id) hourlyJobCodes.add(i.job_code)
+
+
+        assetJobCodes.forEach(jc => {
+            //count totals
+            if (range) {
+                let row = [job_codes[jc].name, 0, 0]
+                let totCount = 0
+                for (let d of dates) {
+                    console.log(d)
+                    let count = 0
+                    for (let i of asset_tracking_query)
+                        if (i.user_id == id && i.date.toISOString().split('T')[0] == d.toISOString().split('T')[0] && i.job_code == jc) count++
+                    row.push(count, parseFloat(job_codes[jc].price) * parseFloat(count))
+                    totCount += count
+                }
+                row[1] = totCount
+                row[2] = parseFloat(job_codes[jc].price) * parseFloat(totCount)
+                d.push(row)
+            }
+            else {
+                let count = 0
+                for (let i of asset_tracking_query)
+                    if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count++
+                d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * parseFloat(count)])
+            }
+        })
+
+        hourlyJobCodes.forEach(jc => {
+            //count totals
+            if (range) {
+                let row = [job_codes[jc].name, 0, 0]
+                let totCount = 0
+                for (let d of dates) {
+                    console.log(d)
+                    let count = 0
+                    for (let i of hourly_tracking_query)
+                        if (i.user_id == id && i.date.toISOString().split('T')[0] == d.toISOString().split('T')[0] && i.job_code == jc) count++
+                    row.push(count, parseFloat(job_codes[jc].price) * parseFloat(count))
+                    totCount += count
+                }
+                row[1] = totCount
+                row[2] = parseFloat(job_codes[jc].price) * parseFloat(totCount)
+                d.push(row)
+            }
+            else {
+                let count = 0
+                for (let i of hourly_tracking_query)
+                    if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count++
+                d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * parseFloat(count)])
+            }
+        })
+
+        return d
+    }
+
+    applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
+
+    return res.status(200).json({ data })
+})
+
 
 module.exports = Router
 
