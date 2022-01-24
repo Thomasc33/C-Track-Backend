@@ -518,9 +518,6 @@ Router.post('/generate', async (req, res) => {
 
     const { date, range } = req.body
 
-    console.log(date, range)
-    console.log(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
-
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
@@ -668,6 +665,46 @@ Router.post('/generate', async (req, res) => {
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
 
     return res.status(200).json({ data })
+})
+
+Router.post('/assetsummary', async (req, res) => {
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
+
+    const { date, range } = req.body
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+        .then(d => d.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (asset_tracking_query && asset_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
+
+    // Get user name object
+    let usernames = {}
+    let user_query = await pool.request().query(`SELECT id,name FROM users`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (user_query.isErrored) return res.status(500).json({ message: 'Error fetching users' })
+    for (let i of user_query.recordset) usernames[i.id] = i.name
+
+
+    // Get Job Code Names
+    let job_codes = {}
+    let job_code_query = await pool.request().query(`SELECT id,job_code,price FROM jobs`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price }
+
+    let data = [['id', 'user', 'uid', 'asset id', 'status', 'job code', 'date', 'time', 'notes']]
+
+    for (let i of asset_tracking_query) {
+        data.push([i.id, usernames[i.user_id], i.user_id, i.asset_id, job_codes[i.job_code].name, i.job_code, i.date.toISOString().split('T')[0], i.time.toISOString().substring(11, 18), i.notes || ''])
+    }
+
+    res.status(200).json({ data })
 })
 
 
