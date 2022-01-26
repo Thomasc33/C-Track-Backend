@@ -442,6 +442,11 @@ Router.post('/edit', async (req, res) => {
         if (!found) issues.push('Model number doesnt exist')
     }
 
+    // if change == company, verify it meets the companies array in settings
+    if (change == 'company') {
+        if (!require('../settings.json').deviceCompanies.includes(value)) return res.status(400).json({ message: 'Company Type invalid' })
+    }
+
     if (issues.length > 0) return res.status(400).json(issues)
 
     // Get Data
