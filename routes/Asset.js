@@ -407,6 +407,22 @@ Router.get('/get/:search', async (req, res) => {
         resu.push(r)
     }
 
+    let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${search}' OR name = '${search}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (model_query.isErrored) return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+
+    for (let i of model_query.recordset) {
+        let r = { type: 'model', info: i, assets: [] }
+        r.info.isModel = true
+
+        let aq = await pool.request().query(`SELECT * FROM assets WHERE model_number = '${i.model_number}'`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (aq.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
+
+        if (!aq.isErrored && aq.recordset.length > 0) for (let i of aq.recordset) r.assets.push(i)
+
+        resu.push(r)
+    }
+
     if (resu.length === 0) resu = { notFound: true }
 
     // Return Data
