@@ -10,6 +10,11 @@
         },
         "port": 1433
     },
+    "tsheets": {
+        "clientId": "",
+        "redirectURI": "",
+        "clientSecret": ""
+    },
     "port": 80,
     "tenantId": "",
     "appid": "",

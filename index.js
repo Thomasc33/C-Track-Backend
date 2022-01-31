@@ -102,6 +102,7 @@ app.use('/a/hourly', require('./routes/Hourly'))
 app.use('/a/importer', require('./routes/Importer'))
 app.use('/a/model', require('./routes/Model'))
 app.use('/a/reports', require('./routes/Reports'))
+app.use('/a/oauth', require('./routes/OAuth'))
 
 
 // Starts HTTP Server

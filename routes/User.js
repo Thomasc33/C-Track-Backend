@@ -14,6 +14,9 @@ Router.get('/verify', async (req, res) => {
         .catch(er => { return { errored: true, er } })
     if (!uid.errored) return res.status(200).json({ message: `Success`, uid })
 
+    if (uid.error == 'archived') return res.status(400).json({ message: 'archived' })
+
+
     //get and parse token
     const decoded = jwt_decode(req.headers.authorization)
 
@@ -63,7 +66,7 @@ Router.get('/all', async (req, res) => {
     let pool = await sql.connect(config)
 
     //query
-    let users = await pool.request().query(`SELECT id, name, email, title FROM users`)
+    let users = await pool.request().query(`SELECT id, name, email, title FROM users WHERE is_archived = 0`)
         .catch(er => { return { isErrored: true, error: er } })
     if (users.isErrored) return res.status(500).json({ error: users.error })
 
@@ -89,7 +92,7 @@ Router.get('/all/admin', async (req, res) => {
     let pool = await sql.connect(config)
 
     //query
-    let users = await pool.request().query(`SELECT id, name, is_admin FROM users`)
+    let users = await pool.request().query(`SELECT id, name, is_admin, is_archived FROM users`)
         .catch(er => { return { isErrored: true, error: er } })
     if (users.isErrored) return res.status(500).json({ error: users.error })
 
@@ -150,7 +153,7 @@ Router.post('/perm/edit/admin', async (req, res) => {
 
     // Data validation
     const { id } = req.body
-    const setAdminTo = req.body.isAdmin
+    const setAdminTo = req.body.val
     if (!id || isNaN(parseInt(id))) return res.status(400).json({ error: 'Invalid UID provided' })
     if (![0, 1].includes(setAdminTo)) return res.status(400).json({ error: 'setAdminTo is not binary' })
 
@@ -162,6 +165,32 @@ Router.post('/perm/edit/admin', async (req, res) => {
 
     // Query
     let resu = await pool.request().query(`UPDATE users SET is_admin = ${setAdminTo} WHERE id = '${id}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (resu.isErrored) return res.status(500).json({ error: resu.error })
+
+    return res.status(200).json({ message: 'Success' })
+})
+
+Router.post('/management/edit/archive', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+
+    // Data validation
+    const { id } = req.body
+    const setArchiveTo = req.body.val
+    if (!id || isNaN(parseInt(id))) return res.status(400).json({ error: 'Invalid UID provided' })
+    if (![0, 1].includes(setArchiveTo)) return res.status(400).json({ error: 'setArchiveTo is not binary' })
+
+    // Block user from removing admin from themselves
+    if (uid == id) return res.status(403).json({ message: 'Unable to archive yourself' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query
+    let resu = await pool.request().query(`UPDATE users SET is_archived = ${setArchiveTo} WHERE id = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (resu.isErrored) return res.status(500).json({ error: resu.error })
 

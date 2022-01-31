@@ -10,7 +10,8 @@ const changeToColumn = {
     job_name: 'job_name',
     job_code: 'job_code',
     applies: 'applies',
-    isAsset: 'requires_asset'
+    isAsset: 'requires_asset',
+    hourly_goal: 'hourly_goal'
 }
 
 Router.get('/all', async (req, res) => {
@@ -75,7 +76,7 @@ Router.post('/new', async (req, res) => {
     if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
     // Get Data
-    const { job_code, job_name, price, isHourly, isAsset, applies } = req.body
+    const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal } = req.body
 
     // Data Validation
     let errored = false
@@ -97,13 +98,13 @@ Router.post('/new', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}', '${isAsset ? '1' : '0'}')`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset, hourly_goal) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}', '${isAsset ? '1' : '0'}', '${hourly_goal || 'null'}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ message: 'Unable to get job codes' })
+        return res.status(500).json({ message: 'Failed to insert' })
     }
     return res.status(200).json({ message: 'success' })
 })
@@ -143,6 +144,8 @@ Router.post('/edit', async (req, res) => {
         case 'applies':
             //no further validation needed
             break;
+        case 'hourly_goal':
+            break;
         default:
             errors.push('Unknown change type')
             break;
@@ -159,7 +162,7 @@ Router.post('/edit', async (req, res) => {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ message: 'Unable to get job codes' })
+        return res.status(400).json({ message: 'Failed to edit' })
     }
     return res.status(200).json({ message: 'success' })
 })

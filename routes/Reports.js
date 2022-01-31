@@ -1,6 +1,7 @@
 const express = require('express')
 const Router = express.Router()
 const sql = require('mssql')
+const axios = require('axios').default
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 
@@ -540,13 +541,86 @@ Router.post('/generate', async (req, res) => {
     if (user_query.isErrored) return res.status(500).json({ message: 'Error fetching users' })
     for (let i of user_query.recordset) usernames[i.id] = i.name
 
+    let applicableUsers = new Set()
+    if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
+    if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
+    let applicableUserString = ''
+    applicableUsers.forEach(v => applicableUserString += `${v},`)
+    applicableUserString.substring(0, applicableUserString.length - 1)
+
 
     // Get Job Code Names
     let job_codes = {}
-    let job_code_query = await pool.request().query(`SELECT id,job_code,price FROM jobs`)
+    let job_code_query = await pool.request().query(`SELECT id,job_code,price,hourly_goal FROM jobs`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
-    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price }
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price, hourly_goal: i.hourly_goal }
+
+
+    // Get Tsheets counts
+    /**
+     * date{
+     *      employee {
+     *              userObj:
+     *              timesheets:[ts_obj]       
+     *      }
+     * }
+     * 
+     */
+
+    const ts_authorization = await tokenParsing.getTSheetsToken(req.headers.authorization)
+        .then(d => d.token)
+        .catch(er => { return null })
+
+    let tsheets_data = {}
+
+    if (ts_authorization) {
+        let job_code_cache = {} //tsid:db id
+        let loop = true, failed = false
+        let page = 1
+        do {
+            let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
+                params: {
+                    user_ids: applicableUserString,
+                    start_date: date,
+                    end_date: range || date,
+                    page: page
+                }, headers: {
+                    Authorization: ts_authorization
+                }
+            }).catch(er => { failed = true })
+            if (failed) break;
+            if (!ts_call.data.results) { failed = true; break; }
+
+            let sheets = ts_call.data.results.timesheets
+
+            if (sheets.more) page++
+            else loop = false
+
+            for (let i of sheets) { //this might have to be 'for in'
+                if (!tsheets_data[i.date]) tsheets_data[i.date] = {}
+                if (!tsheets_data[i.date][i.user_id]) tsheets_data[i.date][i.user_id] = { userObj: sheets.supplemental_data.users[i.user_id], timesheets: [] }
+                if (job_code_cache[i.jobcode_id]) i.jobCode = job_code_cache[i.jobcode_id]
+                else {
+                    let f = false
+                    for (let j in job_codes) {
+                        if (j.name.replace(/[:-]/gi, ' ').toLowerCase() == sheets.supplemental_data.jobcodes[i.jobcode_id].name.replace(/[:-]/gi, ' ').toLowerCase()) {
+                            f = true
+                            i.jobCode = j
+                            job_code_cache[i.jobcode_id] = j
+                            break;
+                        }
+                    }
+                    if (!f) i.jobCode = null
+                }
+                i.count = i.notes ? i.notes.replace(/[:-]/g, ' ').split(' ')[0] : 0
+                if (isNaN(i)) i = 0
+                i.hours = i.duration / 3600
+                tsheets_data[i.date][i.user_id].timesheets.push(i)
+            }
+        } while (loop)
+    }
+    if (Object.keys(tsheets_data).length == 0) tsheets_data = null
 
 
     // The fun stuff :)
@@ -562,10 +636,6 @@ Router.post('/generate', async (req, res) => {
      *  [next person]
      * ]
      */
-
-    let applicableUsers = new Set()
-    if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
-    if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
 
     function getUserData(id) {
         let d = []
@@ -586,13 +656,22 @@ Router.post('/generate', async (req, res) => {
         d.push(['Job Code'])
 
         if (range) {
-            d[1].push('Total Count', 'Total Revenue')
-            for (let i of dates) {
-                let s = i.toISOString().split('T')[0].substring(5)
-                d[1].push(`${s} #`, `${s} $`)
+            if (tsheets_data) {
+                d[1].push('Total Count', 'Total TS Count', 'Total Revenue', 'Average Revenue/Hr', 'Average Count/Hr')
+                for (let i of dates) {
+                    let s = i.toISOString().split('T')[0].substring(5)
+                    d[1].push(`${s} #`, `${s} $`, `${s} TS-Hr`)
+                }
+            } else {
+                d[1].push('Total Count', 'Total Revenue')
+                for (let i of dates) {
+                    let s = i.toISOString().split('T')[0].substring(5)
+                    d[1].push(`${s} #`, `${s} $`)
+                }
             }
         } else {
-            d[1].push(`Count`, 'Revenue')
+            if (tsheets_data) d[1].push('$ Per Job', 'TS-Hours', 'TS-Count', 'Count', 'Goal/Hr', 'Count/Hr', 'Revenue', 'Revenue/Hr')
+            else d[1].push(`Count`, 'Revenue')
         }
 
         let assetJobCodes = new Set()
@@ -601,58 +680,145 @@ Router.post('/generate', async (req, res) => {
         if (hourly_tracking_query) for (let i of hourly_tracking_query) if (i.user_id == id) hourlyJobCodes.add(i.job_code)
 
         let totalrevenue = 0.0
+        let totalhours = 0.0
 
         assetJobCodes.forEach(jc => {
             //count totals
             if (range) {
-                let row = [job_codes[jc].name, 0, 0]
-                let totCount = 0
-                for (let d of dates) {
-                    console.log(d)
-                    let count = 0
-                    for (let i of asset_tracking_query)
-                        if (i.user_id == id && i.date.toISOString().split('T')[0] == d.toISOString().split('T')[0] && i.job_code == jc) count++
-                    row.push(count, parseFloat(job_codes[jc].price) * parseFloat(count))
-                    totCount += count
+                if (tsheets_data) {
+                    let row = [], revs = []
+                    let tot_count = 0, tot_ts_count = 0, tot_rev = 0, ave_rev, tot_h
+                    for (let d of dates) {
+                        let h = 0, c = 0
+                        d = d.toISOString().split('T')[0]
+                        for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                        for (let i of asset_tracking_query) {
+                            try {
+                                if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) c++
+                            } catch (e) { console.log(e) }
+                        }
+                        let r = parseFloat(job_codes[jc].price) * parseFloat(c)
+                        row.push(c, r, h)
+                        totalhours += h //For user average
+                        tot_h += h // For row average
+                        revs.push(r)
+                        tot_count += c
+                        tot_rev += r
+                    }
+                    ave_rev = revs.reduce(a, b => a + b) / revs.length // Average
+                    row.unshift(tot_count, tot_ts_count, tot_rev, ave_rev, tot_count / tot_h)
+                } else {
+                    let row = [job_codes[jc].name, 0, 0]
+                    let totCount = 0
+                    for (let d of dates) {
+                        let count = 0
+                        d = d.toISOString().split('T')[0]
+                        for (let i of asset_tracking_query) {
+                            try {
+                                if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) count++
+                            } catch (e) { console.log(e) }
+                        }
+                        row.push(count, parseFloat(job_codes[jc].price) * parseFloat(count))
+                        totCount += count
+                    }
+                    row[1] = totCount
+                    row[2] = parseFloat(job_codes[jc].price) * parseFloat(totCount)
+                    d.push(row)
+                    totalrevenue += row[2]
                 }
-                row[1] = totCount
-                row[2] = parseFloat(job_codes[jc].price) * parseFloat(totCount)
-                d.push(row)
-                totalrevenue += row[2]
             }
             else {
-                let count = 0
-                for (let i of asset_tracking_query)
-                    if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count++
-                d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * parseFloat(count)])
-                totalrevenue += parseFloat(job_codes[jc].price) * parseFloat(count)
+                if (tsheets_data) {
+                    let job_price, ts_hours, ts_count, count, goal, hrly_count, revenue, hrly_revenue
+
+                    job_price = job_codes[jc].price
+                    goal = job_codes[jc].hourly_goal || '-'
+
+                    for (let i of tsheets_data[date][id]) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+
+                    for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count++
+
+                    revenue = parseFloat(job_codes[jc].price) * parseFloat(count)
+                    totalrevenue += revenue
+                    totalhours += ts_hours
+
+                    if (goal == '-') hrly_count = '-'
+                    else hrly_count = count / ts_hours
+
+                    hrly_revenue = revenue / ts_hours
+
+                    d.push([job_price, ts_hours, ts_count, count, goal, hrly_count, revenue, hrly_revenue])
+                } else {
+                    let count = 0
+                    for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count++
+                    d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * parseFloat(count)])
+                    totalrevenue += parseFloat(job_codes[jc].price) * parseFloat(count)
+                }
             }
         })
 
         hourlyJobCodes.forEach(jc => {
             //count totals
             if (range) {
-                let row = [job_codes[jc].name, 0, 0]
-                let totCount = 0.0
-                for (let d of dates) {
-                    console.log(d)
-                    let count = 0.0
-                    for (let i of hourly_tracking_query)
-                        if (i.user_id == id && i.date.toISOString().split('T')[0] == d.toISOString().split('T')[0] && i.job_code == jc) count += i.hours
-                    row.push(count, parseFloat(job_codes[jc].price) * count)
-                    totCount += count
+                if (tsheets_data) {
+                    let row = [], revs = []
+                    let tot_count = 0, tot_ts_count = 0, tot_rev = 0, ave_rev, tot_h
+                    for (let d of dates) {
+                        let h = 0, c = 0
+                        d = d.toISOString().split('T')[0]
+                        for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                        for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) count += i.hours
+                        let r = parseFloat(job_codes[jc].price) * parseFloat(c)
+                        row.push(c, r, h)
+                        totalhours += h //For user average
+                        tot_h += h // For row average
+                        revs.push(r)
+                        tot_count += c
+                        tot_rev += r
+                    }
+                    ave_rev = revs.reduce(a, b => a + b) / revs.length // Average
+                    row.unshift(tot_count, tot_ts_count, tot_rev, ave_rev, tot_count / tot_h)
+                } else {
+                    let row = [job_codes[jc].name, 0, 0]
+                    let totCount = 0.0
+                    for (let d of dates) {
+                        let count = 0.0
+                        d = d.toISOString().split('T')[0]
+                        for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) count += i.hours
+
+                        row.push(count, parseFloat(job_codes[jc].price) * count)
+                        totCount += count
+                    }
+                    row[1] = totCount
+                    row[2] = parseFloat(job_codes[jc].price) * totCount
+                    d.push(row)
+                    totalrevenue += row[2]
                 }
-                row[1] = totCount
-                row[2] = parseFloat(job_codes[jc].price) * totCount
-                d.push(row)
-                totalrevenue += row[2]
             }
             else {
-                let count = 0
-                for (let i of hourly_tracking_query)
-                    if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
-                d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * count])
-                totalrevenue += parseFloat(job_codes[jc].price) * count
+                if (tsheets_data) {
+                    let job_price, ts_hours, ts_count, count, revenue, hrly_revenue
+
+                    job_price = job_codes[jc].price
+
+                    for (let i of tsheets_data[date][id]) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+
+                    for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
+
+                    revenue = parseFloat(job_codes[jc].price) * parseFloat(count)
+                    totalrevenue += revenue
+                    totalhours += ts_hours
+
+                    hrly_revenue = revenue / ts_hours
+                    //('$ Per Job', 'TS-Hours', 'TS-Count', 'Count', 'Goal/Hr', 'Count/Hr', 'Revenue', 'Revenue/Hr')
+                    d.push([job_price, ts_hours, ts_count, count, '-', '-', revenue, hrly_revenue])
+                } else {
+                    let count = 0
+                    for (let i of hourly_tracking_query)
+                        if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
+                    d.push([job_codes[jc].name, count, parseFloat(job_codes[jc].price) * count])
+                    totalrevenue += parseFloat(job_codes[jc].price) * count
+                }
             }
         })
 
