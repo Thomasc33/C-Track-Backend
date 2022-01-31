@@ -824,6 +824,7 @@ Router.post('/generate', async (req, res) => {
 
         // Totals section
         d.push([], ['Total Revenue', totalrevenue])
+        if (tsheets_data) d.push(['Total Hours', totalhours], ['Average Hourly', totalrevenue / totalhours])
 
         return d
     }
