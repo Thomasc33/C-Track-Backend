@@ -97,8 +97,7 @@ Router.post('/new', async (req, res) => {
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
-
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset, hourly_goal) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}', '${isAsset ? '1' : '0'}', '${hourly_goal || 'null'}')`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}', '${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
