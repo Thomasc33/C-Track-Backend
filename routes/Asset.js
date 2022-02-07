@@ -379,6 +379,8 @@ Router.get('/get/:search', async (req, res) => {
     for (let i of tracker_comment_query.recordset) {
         let id = i.asset_id
 
+        if (id == '.') continue
+
         let aq = await pool.request().query(`SELECT * FROM assets WHERE id = '${id}'`)
             .catch(er => { console.log(er); return { isErrored: true, error: er } })
         if (aq.isErrored) {
