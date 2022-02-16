@@ -31,7 +31,7 @@ Router.get('/user/:date', async (req, res) => {
 
     // Get Data
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+
     let asset_tracking = await pool.request().query(`SELECT * FROM asset_tracking WHERE user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -266,7 +266,7 @@ Router.get('/fetch/:id', async (req, res) => {
 
     // Get Data
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+
     let asset_tracking = await pool.request().query(`SELECT * FROM assets WHERE id = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -440,6 +440,7 @@ Router.post('/edit', async (req, res) => {
 
     //Get date from header
     const { id, change, value } = req.body
+    let val = value.replace("'", '')
 
     // Data validation
     let issues = []
@@ -451,31 +452,31 @@ Router.post('/edit', async (req, res) => {
 
     // if change == model_number, validate the model number
     if (change == 'model_number') {
-        let q = await pool.request().query(`SELECT model_number from models WHERE model_number = '${value}'`)
+        let q = await pool.request().query(`SELECT model_number from models WHERE model_number = '${val}'`)
             .catch(er => { return { isErrored: true, error: er } })
         if (q.isErrored) return res.status(500).json({ message: 'failed to query model numbers', er: q.error })
         let found = false
         for (let i of q.recordset)
-            if (i.model_number == value) found = true
+            if (i.model_number == val) found = true
         if (!found) issues.push('Model number doesnt exist')
     }
 
     // if change == company, verify it meets the companies array in settings
     if (change == 'company') {
-        if (!require('../settings.json').deviceCompanies.includes(value)) return res.status(400).json({ message: 'Company Type invalid' })
+        if (!require('../settings.json').deviceCompanies.includes(val)) return res.status(400).json({ message: 'Company Type invalid' })
     }
 
     if (issues.length > 0) return res.status(400).json(issues)
 
     // Get Data
-    let asset_query = await pool.request().query(`UPDATE assets SET ${change} = '${value}' WHERE id = '${id}'`)
+    let asset_query = await sql.query(`UPDATE assets SET ${change} = '${val}' WHERE id = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
 
     if (asset_query.isErrored) {
         // Check for specific errors
 
         // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
+        return res.status(500).json({ message: '' })
     }
 
     // Return Data
@@ -675,6 +676,96 @@ Router.post('/unlock', async (req, res) => {
     return res.status(200).json({ message: 'success' })
 })
 
+Router.get('/types', async (req, res) => {
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get Data
+
+
+    let q = await pool.request().query(`SELECT TABLE_NAME,COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE
+    FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'assets'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(500).json({ code: 400, message: 'how' })
+    }
+
+    return res.status(200).json({ data: q.recordset })
+})
+
+Router.post('/alter', async (req, res) => {
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    const { COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE } = req.body
+
+    let q = await pool.request().query(`ALTER TABLE assets ALTER COLUMN ${COLUMN_NAME} ${DATA_TYPE}${CHARACTER_MAXIMUM_LENGTH ? `(${CHARACTER_MAXIMUM_LENGTH})` : ''}${IS_NULLABLE ? ' NULL' : ''}`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(500).json({ code: 400, message: `Bad query, ${`ALTER TABLE assets ALTER COLUMN ${COLUMN_NAME} ${DATA_TYPE}${CHARACTER_MAXIMUM_LENGTH ? `(${CHARACTER_MAXIMUM_LENGTH})` : ''}${IS_NULLABLE ? ' NULL' : ''}`}` })
+    }
+
+    return res.status(200).json({ data: 'Success' })
+})
+
+Router.delete('/alter/:column', async (req, res) => {
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    const column = req.params.column
+
+    let q = await pool.request().query(`ALTER TABLE assets DROP COLUMN ${column}`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(500).json({ code: 400, message: `Bad query, ${`ALTER TABLE assets DROP COLUMN ${column}`}` })
+    }
+
+    return res.status(200).json({ data: 'Success' })
+})
+
+Router.put('/alter', async (req, res) => {
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    const { COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE } = req.body
+
+    let q = await pool.request().query(`ALTER TABLE assets ADD ${COLUMN_NAME} ${DATA_TYPE}${CHARACTER_MAXIMUM_LENGTH ? `(${CHARACTER_MAXIMUM_LENGTH})` : ''}${IS_NULLABLE ? ' NULL' : ''}`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(500).json({ code: 400, message: `Bad query, ${`ALTER TABLE assets ALTER COLUMN ${COLUMN_NAME} ${DATA_TYPE}${CHARACTER_MAXIMUM_LENGTH ? `(${CHARACTER_MAXIMUM_LENGTH})` : ''}${IS_NULLABLE ? ' NULL' : ''}`}` })
+    }
+
+    return res.status(200).json({ data: 'Success' })
+})
 module.exports = Router
 
 /**

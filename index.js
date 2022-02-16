@@ -78,7 +78,7 @@ app.use(async (req, res, next) => {
     const body = req.body
     let bodyString = ''
     for (let i in body) {
-        bodyString += `"${i}":"{${body[i]}}", `
+        bodyString += `"${i.replace("'", '')}":"{${body[i]}}", `
     }
 
     // Establish SQL Connection
