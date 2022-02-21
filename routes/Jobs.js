@@ -11,14 +11,15 @@ const changeToColumn = {
     job_code: 'job_code',
     applies: 'applies',
     isAsset: 'requires_asset',
-    hourly_goal: 'hourly_goal'
+    hourly_goal: 'hourly_goal',
+    statusOnly: 'status_only'
 }
 
 Router.get('/all', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+    // Query the DB
     let asset_tracking = await pool.request().query(`SELECT * FROM jobs WHERE status_only IS NULL OR status_only = 0`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -41,11 +42,76 @@ Router.get('/all', async (req, res) => {
     return res.status(200).json(data)
 })
 
+Router.get('/all/:type', async (req, res) => {
+    let type = req.params.type
+    if (!['hrly', 'asset'].includes(type)) return res.status(400).json(`${type} is not a valid type (hrly, asset)`)
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query the DB
+    let asset_tracking = await pool.request().query(`SELECT * FROM jobs WHERE (status_only IS NULL OR status_only = 0) AND is_hourly = ${type == 'hrly' ? '1' : '0'}`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (asset_tracking.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ message: 'Unable to get job codes' })
+    }
+
+    // Organize Data
+    let job_codes = [...asset_tracking.recordset]
+
+    for (let i in job_codes)
+        if (job_codes[i].applies) job_codes[i].applies = job_codes[i].applies.split(',')
+        else job_codes[i].applies = []
+
+    let data = { job_codes }
+
+    // Return Data
+    return res.status(200).json(data)
+})
+
+Router.get('/favorites/:type', async (req, res) => {
+    // Get UID
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+    if (!uid) return res.status(400).json({ er: 'No UID' })
+
+    // Get hrly/asset type
+    let type = req.params.type
+    if (!['hrly', 'asset'].includes(type)) return res.status(400).json({ er: 'Missing type parameter (hrly/asset)' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query the DB
+    let qeu = await pool.request().query(`SELECT ${type == 'hrly' ? 'hrly_favorites' : 'asset_favorites'} FROM users WHERE id = ${uid}`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (qeu.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ message: 'Unable to get job codes' })
+    }
+
+    // Organize Data
+    let r = qeu.recordset[0]
+
+    d = []
+    if (type == 'hrly') { if (r.hrly_favorites) d = r.hrly_favorites.split(',') }
+    else if (r.asset_favorites) d = r.asset_favorites.split(',')
+
+    let data = { favorites: d }
+
+    // Return Data
+    return res.status(200).json(data)
+})
+
 Router.get('/full', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+    // Query the DB
     let asset_tracking = await pool.request().query(`SELECT * FROM jobs`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -76,7 +142,7 @@ Router.post('/new', async (req, res) => {
     if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
     // Get Data
-    const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal } = req.body
+    const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal, statusOnly } = req.body
 
     // Data Validation
     let errored = false
@@ -97,7 +163,7 @@ Router.post('/new', async (req, res) => {
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}','0', '${applies || 'null'}', '${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''})`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || 'null'}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
@@ -127,6 +193,10 @@ Router.post('/edit', async (req, res) => {
             if (!['true', 'false'].includes(value.toLowerCase()))
                 errors.push('isHourly value invalid')
             break;
+        case 'statusOnly':
+            if (!['true', 'false'].includes(value.toLowerCase()))
+                errors.push('statusOnly value invalid')
+            break;
         case 'isAsset':
             if (!['true', 'false'].includes(value.toLowerCase()))
                 errors.push('isAsset value invalid')
@@ -155,7 +225,7 @@ Router.post('/edit', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' || change == 'isAsset' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly or isAsset
+    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' || change == 'isAsset' || change == 'statusOnly' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly or isAsset or statusOnly
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors

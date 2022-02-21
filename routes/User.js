@@ -221,4 +221,56 @@ Router.post('/management/edit/title', async (req, res) => {
     return res.status(200).json({ message: 'Success' })
 })
 
+Router.post('/pref/jobs/favorites', async (req, res) => {
+    // Get UID
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+    if (!uid) return res.status(400).json({ er: 'No UID' })
+
+    // Get hrly/asset type
+    const { type, isRemove, job_id } = req.body
+    if (!['hrly', 'asset'].includes(type)) return res.status(400).json({ er: 'Missing type (hrly/asset)' })
+    if (![0, 1].includes(isRemove)) return res.status(400).json({ error: 'isRemove is not binary' })
+    if (!job_id) return res.status(400).json({})
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query the DB for baseline
+    let que = await pool.request().query(`SELECT ${type == 'hrly' ? 'hrly_favorites' : 'asset_favorites'} FROM users WHERE id = ${uid}`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (que.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ message: 'Unable to get job codes' })
+    }
+
+    // Organize Data
+    let r = que.recordset[0]
+    let d
+    if (type == 'hrly') { if (r.hrly_favorites) d = r.hrly_favorites.split(',') }
+    else if (r.asset_favorites) d = r.asset_favorites.split(',')
+
+    if (isRemove) {
+        if (!d) return res.status(400).json({ message: 'No favorites found to remove' })
+        let ind = d.indexOf(job_id)
+        if (ind === -1) return res.status(400).json({ message: `${job_id} not found in favorites list, cant remove` })
+        d.splice(ind, 1)
+    } else {
+        if (!d) d = [job_id]
+        else {
+            if (d.includes(job_id)) return res.status(400).json({ message: `${job_id} already found in favorites` })
+            d.push(job_id)
+        }
+    }
+
+    let q = await pool.request().query(`UPDATE users SET ${type == 'hrly' ? 'hrly_favorites' : 'asset_favorites'} = '${d.map(m => m).join(',')}' WHERE id = ${uid}`)
+        .catch(er => { return { isErrored: true, er: er } })
+
+    if (q.isErrored) return res.status(500).json({ er })
+
+    // Return Data
+    return res.status(200).json({ message: 'ok' })
+})
+
 module.exports = Router

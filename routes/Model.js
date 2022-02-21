@@ -18,7 +18,7 @@ Router.get('/fetch/:id', async (req, res) => {
 
     // Get Data
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+    // Query the DB
     let asset_tracking = await pool.request().query(`SELECT * FROM assets WHERE id = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -197,7 +197,7 @@ Router.get('/all', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+    // Query the DB
     let model_query = await pool.request().query(`SELECT * FROM models`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (model_query.isErrored) {

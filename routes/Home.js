@@ -20,7 +20,7 @@ Router.get('/user', async (req, res) => {
 
     // Get Data
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+    // Query the DB
     let asset_tracking = await pool.request().query(`SELECT job_code FROM asset_tracking WHERE user_id = '${uid}' AND date = '${getDate(Date.now())}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {

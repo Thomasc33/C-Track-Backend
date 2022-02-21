@@ -73,7 +73,7 @@ Router.get('/user/:uid/:date', async (req, res) => {
 
     // Get Data
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+    // Query the DB
     let asset_tracking = await pool.request().query(`SELECT job_code FROM asset_tracking WHERE user_id = '${uid}' AND date = '${date}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -356,7 +356,7 @@ Router.get('/hourly/user/:uid/:date', async (req, res) => {
 
     // Get Data
 
-    // Combining these into a single query is out of my knowledge level, so I'm breaking it up into multiple
+    // Query the DB
     let hourly_tracking = await pool.request().query(`SELECT * FROM hourly_tracking WHERE user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (hourly_tracking.isErrored) {
