@@ -121,6 +121,7 @@ Router.post('/perm/edit', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
+    if (errored) return res.status(500).json({ er })
     if (!isAdmin && !permissions.edit_users) return res.status(401).json({ error: 'Forbidden' })
 
     // Data validation
@@ -191,6 +192,29 @@ Router.post('/management/edit/archive', async (req, res) => {
 
     // Query
     let resu = await pool.request().query(`UPDATE users SET is_archived = ${setArchiveTo} WHERE id = '${id}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (resu.isErrored) return res.status(500).json({ error: resu.error })
+
+    return res.status(200).json({ message: 'Success' })
+})
+
+Router.post('/management/edit/title', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (errored) return res.status(500).json({ er })
+    if (!isAdmin && (!permissions || !permissions.edit_users)) return res.status(401).json({ error: 'Forbidden' })
+
+    // Data validation
+    const { id, title } = req.body
+    if (!id || isNaN(parseInt(id))) return res.status(400).json({ error: 'Invalid UID provided' })
+    if (!title || title.length >= 50) return res.status(400).json({ error: 'Invalid Title' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query
+    let resu = await pool.request().query(`UPDATE users SET title = '${title.replace("'", '')}' WHERE id = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (resu.isErrored) return res.status(500).json({ error: resu.error })
 
