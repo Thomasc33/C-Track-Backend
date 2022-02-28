@@ -93,7 +93,7 @@ Router.post('/user/new', async (req, res) => {
     if (job_code_query.isErrored) return res.status(500).json(job_code_query.er)
     if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(400).json({ message: `Invalid job code '${job_code}'` })
 
-    let asset_query = await pool.request().query(`SELECT id, locked FROM assets WHERE id = '${asset_id}'`)
+    let asset_query = await pool.request().query(`SELECT id,locked,hold_type FROM assets WHERE id = '${asset_id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (asset_query.isErrored) return res.status(500).json(asset_query.er)
     if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_id}'` })
@@ -123,6 +123,7 @@ Router.post('/user/new', async (req, res) => {
     if (status_name_query.isErrored) return
 
     notifications.notify(req.headers.authorization, asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
+    if (asset_query.recordset[0].hold_type) notifications.hold_notify(asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
 })
 
 Router.post('/user/edit', async (req, res) => {
@@ -676,6 +677,34 @@ Router.post('/unlock', async (req, res) => {
     return res.status(200).json({ message: 'success' })
 })
 
+Router.post('/unhold', async (req, res) => {
+    // Get UID from header
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
+
+    // Get data from header
+    const { id } = req.body
+
+    // Get current list of watching people on the asset
+    let pool = await sql.connect(config)
+
+    // Ensure ID exists
+    const validation_query = await pool.request().query(`SELECT id FROM assets WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (validation_query.isErrored) return res.status(500).json({ message: validation_query.er })
+    if (validation_query.recordset.length > 1) return res.status(400).json({ message: 'Asset not found' })
+
+    // Query
+    console.log('q')
+    const update_query = await pool.request().query(`UPDATE assets SET hold_type = null WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (update_query.isErrored) return res.status(500).json({ message: update_query.er })
+
+    return res.status(200).json({ message: 'success' })
+})
+
 Router.get('/types', async (req, res) => {
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
@@ -766,6 +795,7 @@ Router.put('/alter', async (req, res) => {
 
     return res.status(200).json({ data: 'Success' })
 })
+
 module.exports = Router
 
 /**

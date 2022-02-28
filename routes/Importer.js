@@ -28,7 +28,7 @@ Router.post('/asset', async (req, res) => {
 
     const assets_query = await pool.request().query(`SELECT id FROM assets`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (model_query.isErrored) return res.status(500).json({ error: model_query.error })
+    if (assets_query.isErrored) return res.status(500).json({ error: assets_query.error })
     const assets = new Set(Array.from(assets_query.recordset, (v, k) => { return v.id }))
 
     // Data validation
@@ -115,6 +115,54 @@ Router.post('/model', async (req, res) => {
 
     // Return
     return res.status(200).json({ message: 'Success', failed: failedModels })
+})
+
+Router.post('/legal', async (req, res) => {
+    // Check for importer permissions
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (!isAdmin && !permissions.use_importer) return res.status(403).json({ error: 'Forbidden' })
+
+    // Get json data
+    const data = req.body
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get all models
+    let failedAssets = []
+    const assets_query = await pool.request().query(`SELECT id FROM assets`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (assets_query.isErrored) return res.status(500).json({ error: model_query.error })
+    const assets = new Set(Array.from(assets_query.recordset, (v, k) => { return v.id.toLowerCase() }))
+
+    // Data validation
+    let validInserts = []
+    for (let i of data) {
+        // Check to see if data was provided
+        if (!i.id) continue
+
+        // Ensure asset exists
+        if (!assets.has(i.id.toLowerCase())) {
+            failedAssets.push({ id: `${i.id}`, reason: `Asset doesnt exist` }); continue;
+        }
+
+        // Add to valid inserts
+        validInserts.push(i)
+    }
+
+    if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import', failed: failedAssets })
+
+    // Query
+    const query = await pool.request().query(`UPDATE assets SET hold_type = 'Legal' WHERE ${validInserts.map(m => `id = '${m.id}'`).join(' OR ')}`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (query.isErrored) {
+        console.log(query.error)
+        return res.status(500).json({ error: query.error, failed: failedAssets })
+    }
+
+    // Return
+    return res.status(200).json({ message: 'Success', failed: failedAssets })
 })
 
 module.exports = Router
