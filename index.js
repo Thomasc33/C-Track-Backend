@@ -6,6 +6,7 @@ const http = require('http')
 const sql = require('mssql')
 const cors = require('cors')
 const rateLimit = require('express-rate-limit')
+const sqlInjection = require('sql-injection')
 const tokenParsing = require('./lib/tokenParsing')
 
 //Globals
@@ -46,6 +47,12 @@ const apiLimit = rateLimit({
     max: 50 //50 requests
 })
 app.use('/a/', apiLimit)
+
+// Basic SQL Injection escaping
+app.use((req, res, next) => {
+    if (req.body) for (let i in req.body) try { req.body[i] = req.body[i].replace(/--/g, '-').replace(/'/g, '"') } catch (er) { }
+    next()
+})
 
 // Request Logging
 app.use((req, res, next) => {
