@@ -6,7 +6,6 @@ const http = require('http')
 const sql = require('mssql')
 const cors = require('cors')
 const rateLimit = require('express-rate-limit')
-const sqlInjection = require('sql-injection')
 const tokenParsing = require('./lib/tokenParsing')
 
 //Globals
