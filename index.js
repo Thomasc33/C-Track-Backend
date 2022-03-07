@@ -109,6 +109,7 @@ app.use('/a/importer', require('./routes/Importer'))
 app.use('/a/model', require('./routes/Model'))
 app.use('/a/reports', require('./routes/Reports'))
 app.use('/a/oauth', require('./routes/OAuth'))
+app.use('/a/parts', require('./routes/Parts'))
 
 
 // Starts HTTP Server

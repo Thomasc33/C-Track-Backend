@@ -165,4 +165,8 @@ Router.post('/legal', async (req, res) => {
     return res.status(200).json({ message: 'Success', failed: failedAssets })
 })
 
+Router.post('/parts', async (req, res) => { 
+    
+})
+
 module.exports = Router
