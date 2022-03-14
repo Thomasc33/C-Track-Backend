@@ -128,6 +128,31 @@ Router.post('/mgmt/models/create', async (req, res) => {
     return res.status(200).json({ message: 'success' })
 })
 
+Router.get('/mgmt/model/:model', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.view_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Get model number
+    const model = req.params.model
+
+    // Text check model number
+    if (!model || typeof model != 'string') return res.status(400).json({ message: 'Invalid model number' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query the DB
+    let q = await pool.request().query(`SELECT * FROM part_list WHERE model_number = '${model}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(400).json({ message: 'Invalid Model' })
+
+    // Return Data
+    return res.status(200).json(q.recordset)
+})
+
 Router.post('/mgmt/part/create', async (req, res) => { })
 
 Router.put('/mgmt/part/edit', async (req, res) => { })
