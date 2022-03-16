@@ -46,13 +46,15 @@ Router.get('/user/:date', async (req, res) => {
 
 Router.post('/user/new', async (req, res) => {
     // Get UID from header
-    let { t_uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (t_uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    let t_uid = uid
+    uid = req.body.uid
 
     // Get Params
     const data = req.body;
-    let { date, job_code, startTime, endTime, total_hours, notes, uid } = data
+    let { date, job_code, startTime, endTime, total_hours, notes } = data
     if (uid && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
     if (!uid) uid = t_uid
 
@@ -97,9 +99,11 @@ Router.post('/user/new', async (req, res) => {
 
 Router.post('/user/edit', async (req, res) => {
     // Get UID from header
-    let { t_uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (t_uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    let t_uid = uid
+    uid = req.body.uid
 
     // Get Params
     const data = req.body;
@@ -145,9 +149,11 @@ Router.post('/user/edit', async (req, res) => {
 
 Router.delete('/user/del/:id/:date/:uid', async (req, res) => {
     // Get UID from header
-    let { t_uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (t_uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    let t_uid = uid
+    uid = req.body.uid
 
     // Get Params
     const id = req.params.id
