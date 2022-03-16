@@ -515,7 +515,7 @@ Router.post('/generate', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
 
     const { date, range } = req.body
 
@@ -838,7 +838,7 @@ Router.post('/assetsummary', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
 
     const { date, range } = req.body
 
@@ -869,6 +869,89 @@ Router.post('/assetsummary', async (req, res) => {
 
     for (let i of asset_tracking_query) {
         data.push([i.id, usernames[i.user_id], i.user_id, i.asset_id, job_codes[i.job_code].name, i.job_code, i.date.toISOString().split('T')[0], i.time.toISOString().substring(11, 18), i.notes || ''])
+    }
+
+    res.status(200).json({ data })
+})
+
+Router.get('/jobusage/:type', async (req, res) => {
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { errored: true, er } })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
+
+    const type = req.params.type.toLowerCase()
+
+    if (!type || !['ytd', 'at'].includes(type)) return res.status(400).json({ error: `type: '${type}' not recognized` })
+
+    let months = []
+    if (type == 'ytd') {
+        let now = new Date()
+        let year = now.getFullYear()
+        let month = now.getMonth() + 1
+        for (let n in [...Array(12).keys()]) {
+            n = parseInt(n) + 1
+            if (n > month) break
+            months.push({ month: n, year })
+        }
+    } else {
+        let now = new Date()
+        let year = now.getFullYear()
+        let month = now.getMonth() + 1
+        while (year >= 2022) {
+            while (month) {
+                months.push({ month, year })
+                month--
+            }
+            year--
+        }
+    }
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get job codes
+    let jq = await pool.request().query(`SELECT id, job_code,is_hourly FROM jobs`)
+        .then(d => d.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (jq && jq.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
+
+    const aq = `SELECT count(*) AS total, ${[...jq].filter(m => !m.is_hourly).map(m => months.map(d => `SUM(CASE WHEN [job_code] = '${m.id}' and MONTH([date]) = '${d.month}' and YEAR([date]) = '${d.year}' THEN 1 ELSE 0 END) AS [${m.job_code} ${d.month}-${d.year}]`).join(', ')).join(', ')} FROM asset_tracking`
+    const hq = `SELECT count(*) AS total, ${[...jq].filter(m => m.is_hourly).map(m => months.map(d => `SUM(case when [job_code] = '${m.id}' and month([date]) = ${d.month} and year([date]) = ${d.year} then 1 else 0 end) as [${m.job_code} ${d.month}-${d.year}]`).join(', ')).join(', ')} FROM hourly_tracking`
+
+    const aq_q = await pool.request().query(aq)
+        .then(d => d.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (aq_q && aq_q.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
+
+    const hq_q = await pool.request().query(hq)
+        .then(d => d.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (hq_q && hq_q.isErrored) return res.status(500).json({ message: 'Error fetching hourly tracking records' })
+
+    let data = [['Date', jq.map(m => m.job_code)]]
+    let hrly_data = {}
+    let ppd_data = {}
+
+    for (let i in aq_q[0]) {
+        let job = i.substring(0, i.lastIndexOf(' '))
+        let date = i.substring(i.lastIndexOf(' ') + 1, i.length)
+        if (!ppd_data[job]) ppd_data[job] = {}
+        ppd_data[job][date] = aq_q[0][i]
+    }
+    for (let i in hq_q[0]) {
+        let job = i.substring(0, i.lastIndexOf(' '))
+        let date = i.substring(i.lastIndexOf(' ') + 1, i.length)
+        if (!hrly_data[job]) hrly_data[job] = {}
+        hrly_data[job][date] = hq_q[0][i]
+    }
+
+    for (let i of [...months].reverse()) {
+        let row = [`${i.month}-${i.year}`, ...jq.map(m => {
+            if (m.is_hourly) return hrly_data[m.job_code][`${i.month}-${i.year}`]
+            return ppd_data[m.job_code][`${i.month}-${i.year}`]
+        })]
+        data.push(row)
     }
 
     res.status(200).json({ data })
