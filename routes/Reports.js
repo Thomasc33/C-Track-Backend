@@ -164,9 +164,15 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
 
     let data = {}
 
-    for (let i of asset_query.recordset) if (data[i.date]) data[i.date] += ppd_jobs[i.job_code]; else data[i.date] = ppd_jobs[i.job_code]
+    for (let i of asset_query.recordset) {
+        let d = i.date.toISOString().split('T')[0]
+        if (data[d]) data[d] += ppd_jobs[i.job_code]; else data[d] = ppd_jobs[i.job_code]
+    }
 
-    for (let i of hourly_query.recordset) if (data[i.date]) data[i.date] += parseFloat(i.hours) * hourly_jobs[i.job_code]; else data[i.date] = parseFloat(i.hours) * hourly_jobs[i.job_code]
+    for (let i of hourly_query.recordset) {
+        let d = i.date.toISOString().split('T')[0]
+        if (data[d]) data[d] += parseFloat(i.hours) * hourly_jobs[i.job_code]; else data[d] = parseFloat(i.hours) * hourly_jobs[i.job_code]
+    }
 
     return res.status(200).json(data)
 })
