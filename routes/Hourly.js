@@ -11,13 +11,6 @@ const typeOfToColumn = {
     end: 'end_time'
 }
 
-/**
- * TO DO
- * 
- * Add data validation to edit route
- * Edit new route
- */
-
 Router.get('/user/:date', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
@@ -53,12 +46,15 @@ Router.get('/user/:date', async (req, res) => {
 
 Router.post('/user/new', async (req, res) => {
     // Get UID from header
-    let uid = await tokenParsing.toUID(req.headers.authorization)
+    let { t_uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (t_uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+
     // Get Params
     const data = req.body;
-    let { date, job_code, startTime, endTime, total_hours, notes } = data
+    let { date, job_code, startTime, endTime, total_hours, notes, uid } = data
+    if (uid && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
+    if (!uid) uid = t_uid
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -101,13 +97,15 @@ Router.post('/user/new', async (req, res) => {
 
 Router.post('/user/edit', async (req, res) => {
     // Get UID from header
-    let uid = await tokenParsing.toUID(req.headers.authorization)
+    let { t_uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (t_uid.errored) return res.status(401).json({ message: 'bad authorization token' })
 
     // Get Params
     const data = req.body;
-    let { id, change, value, total_hours } = data
+    let { id, change, value, total_hours, uid } = data
+    if (uid && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
+    if (!uid) uid = t_uid
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -145,15 +143,18 @@ Router.post('/user/edit', async (req, res) => {
     return res.status(200).json({ message: 'Success' })
 })
 
-Router.delete('/user/del/:id/:date', async (req, res) => {
+Router.delete('/user/del/:id/:date/:uid', async (req, res) => {
     // Get UID from header
-    let uid = await tokenParsing.toUID(req.headers.authorization)
+    let { t_uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { errored: true, er } })
-    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (t_uid.errored) return res.status(401).json({ message: 'bad authorization token' })
 
     // Get Params
     const id = req.params.id
     const date = req.params.date
+    let uid = req.params.uid
+    if (uid !== 'none' && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
+    if (uid == 'none') uid = t_uid
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
