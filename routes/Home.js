@@ -7,7 +7,7 @@ const tokenParsing = require('../lib/tokenParsing')
 Router.get('/user', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Establish SQL Connection

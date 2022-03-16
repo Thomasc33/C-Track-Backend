@@ -20,7 +20,7 @@ const typeOfToColumn = {
 Router.get('/user/:date', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
@@ -61,7 +61,7 @@ Router.get('/user/:date', async (req, res) => {
 Router.post('/user/new', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     // Get Params
     const data = req.body;
@@ -129,7 +129,7 @@ Router.post('/user/new', async (req, res) => {
 Router.post('/user/edit', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Get Params
@@ -221,7 +221,7 @@ Router.post('/user/edit', async (req, res) => {
 Router.delete('/user/del/:id/:date', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Get Params
@@ -256,7 +256,7 @@ Router.delete('/user/del/:id/:date', async (req, res) => {
 Router.get('/fetch/:id', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
@@ -289,7 +289,7 @@ Router.get('/fetch/:id', async (req, res) => {
 Router.post('/catalog', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Establish SQL Connection
@@ -324,7 +324,7 @@ Router.post('/catalog', async (req, res) => {
 Router.get('/get/:search', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
@@ -435,7 +435,7 @@ Router.get('/get/:search', async (req, res) => {
 Router.post('/edit', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
@@ -487,7 +487,7 @@ Router.post('/edit', async (req, res) => {
 Router.put('/create', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_assets) return res.status(403).json({ error: 'Permission denied' })
 
@@ -525,7 +525,7 @@ Router.put('/create', async (req, res) => {
 Router.patch('/rename', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
@@ -557,7 +557,7 @@ Router.patch('/rename', async (req, res) => {
 Router.post('/watch', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.watch_assets) return res.status(401).json({ error: 'Permission denied' })
 
@@ -591,7 +591,7 @@ Router.post('/watch', async (req, res) => {
 Router.post('/unwatch', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.watch_assets) return res.status(401).json({ error: 'Permission denied' })
 
@@ -626,7 +626,7 @@ Router.post('/unwatch', async (req, res) => {
 Router.post('/lock', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
@@ -653,7 +653,7 @@ Router.post('/lock', async (req, res) => {
 Router.post('/unlock', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
@@ -680,7 +680,7 @@ Router.post('/unlock', async (req, res) => {
 Router.post('/unhold', async (req, res) => {
     // Get UID from header
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
@@ -707,7 +707,7 @@ Router.post('/unhold', async (req, res) => {
 
 Router.get('/types', async (req, res) => {
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
@@ -732,7 +732,7 @@ Router.get('/types', async (req, res) => {
 
 Router.post('/alter', async (req, res) => {
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
@@ -754,7 +754,7 @@ Router.post('/alter', async (req, res) => {
 
 Router.delete('/alter/:column', async (req, res) => {
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
@@ -776,7 +776,7 @@ Router.delete('/alter/:column', async (req, res) => {
 
 Router.put('/alter', async (req, res) => {
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection

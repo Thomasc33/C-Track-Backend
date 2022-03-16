@@ -68,7 +68,7 @@ app.use(async (req, res, next) => {
     next()
     // Get UID
     const uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return
 
     // Get Route

@@ -9,7 +9,7 @@ const config = require('../settings.json').SQLConfig
 Router.get('/common', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.view_part_types) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
@@ -28,7 +28,7 @@ Router.get('/common', async (req, res) => {
 Router.post('/common/new', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_part_types) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
@@ -55,7 +55,7 @@ Router.post('/common/new', async (req, res) => {
 Router.put('/common/edit', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_part_types) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
@@ -86,7 +86,7 @@ Router.put('/common/edit', async (req, res) => {
 Router.get('/mgmt', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.view_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
@@ -105,7 +105,7 @@ Router.get('/mgmt', async (req, res) => {
 Router.post('/mgmt/models/create', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
@@ -131,7 +131,7 @@ Router.post('/mgmt/models/create', async (req, res) => {
 Router.get('/mgmt/model/:model', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.view_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
 

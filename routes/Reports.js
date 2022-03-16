@@ -8,7 +8,7 @@ const tokenParsing = require('../lib/tokenParsing')
 Router.get('/users/daily/:date', async (req, res) => {
     // Check token using toUid function
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
 
@@ -54,7 +54,7 @@ Router.get('/users/daily/:date', async (req, res) => {
 
 Router.get('/user/:uid/:date', async (req, res) => {
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
 
@@ -130,7 +130,7 @@ Router.get('/user/:uid/:date', async (req, res) => {
 
 Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
 
@@ -181,7 +181,7 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
 Router.get('/asset/user/:uid/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -216,7 +216,7 @@ Router.get('/asset/user/:uid/:date', async (req, res) => {
 Router.post('/asset/user/:uid/new', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -261,7 +261,7 @@ Router.post('/asset/user/:uid/new', async (req, res) => {
 Router.post('/asset/user/:uid/edit', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -309,7 +309,7 @@ Router.post('/asset/user/:uid/edit', async (req, res) => {
 Router.delete('/asset/user/:uid/del/:id/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -347,7 +347,7 @@ Router.delete('/asset/user/:uid/del/:id/:date', async (req, res) => {
 Router.get('/hourly/user/:uid/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -384,7 +384,7 @@ Router.get('/hourly/user/:uid/:date', async (req, res) => {
 Router.post('/hourly/user/:uid/new', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -435,7 +435,7 @@ Router.post('/hourly/user/:uid/new', async (req, res) => {
 Router.post('/hourly/user/:uid/edit', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -483,7 +483,7 @@ Router.post('/hourly/user/:uid/edit', async (req, res) => {
 Router.delete('/hourly/user/:uid/del/:id/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
@@ -519,7 +519,7 @@ Router.delete('/hourly/user/:uid/del/:id/:date', async (req, res) => {
 
 Router.post('/generate', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
 
@@ -842,7 +842,7 @@ Router.post('/generate', async (req, res) => {
 
 Router.post('/assetsummary', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
 
@@ -882,7 +882,7 @@ Router.post('/assetsummary', async (req, res) => {
 
 Router.get('/jobusage/:type', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
 
@@ -961,6 +961,26 @@ Router.get('/jobusage/:type', async (req, res) => {
     }
 
     res.status(200).json({ data })
+})
+
+Router.get('/excel', async (req, res) => {
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get and check UID
+    uid = req.params.uid
+    let from = req.params.from
+    let to = req.params.to
+    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
+    let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
+    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
+
+    return res.status(200).json(data)
 })
 
 

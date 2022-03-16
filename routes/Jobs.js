@@ -137,7 +137,7 @@ Router.get('/full', async (req, res) => {
 Router.post('/new', async (req, res) => {
     // Get UID from token header and check for admin
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
@@ -177,7 +177,7 @@ Router.post('/new', async (req, res) => {
 Router.post('/edit', async (req, res) => {
     // Get UID from token header and check for admin
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 

@@ -14,7 +14,7 @@ const typeOfToColumn = {
 Router.get('/user/:date', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
@@ -47,7 +47,7 @@ Router.get('/user/:date', async (req, res) => {
 Router.post('/user/new', async (req, res) => {
     // Get UID from header
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     let t_uid = uid
     uid = req.body.uid
@@ -100,7 +100,7 @@ Router.post('/user/new', async (req, res) => {
 Router.post('/user/edit', async (req, res) => {
     // Get UID from header
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     let t_uid = uid
     uid = req.body.uid
@@ -150,7 +150,7 @@ Router.post('/user/edit', async (req, res) => {
 Router.delete('/user/del/:id/:date/:uid', async (req, res) => {
     // Get UID from header
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     let t_uid = uid
 

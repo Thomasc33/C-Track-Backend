@@ -11,7 +11,7 @@ Router.post('/ts/login', async (req, res) => {
     const { accessToken } = req.body
 
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     let d = await axios.post('https://rest.tsheets.com/api/v1/grant', {
         grant_type: 'authorization_code',
@@ -33,7 +33,7 @@ Router.post('/ts/login', async (req, res) => {
 
 Router.get('/ts/verify', async (req, res) => {
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     // Establish SQL Connection
@@ -41,7 +41,7 @@ Router.get('/ts/verify', async (req, res) => {
 
     let eq = await pool.request().query(`SELECT * FROM users WHERE id = '${uid}'`)
         .then(d => d.recordset)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (eq.errored) return res.status(400).json({ error: eq.er })
     if (eq.length !== 1) return res.status(500).json({ error: `${eq.length} users found with uid of ${uid}` })
 

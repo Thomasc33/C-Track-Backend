@@ -11,7 +11,7 @@ const tokenParsing = require('../lib/tokenParsing')
 Router.get('/verify', async (req, res) => {
     // Check token using toUid function
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!uid.errored) return res.status(200).json({ message: `Success`, uid })
 
     if (uid.error == 'archived') return res.status(400).json({ message: 'archived' })
@@ -51,7 +51,7 @@ Router.get('/verify', async (req, res) => {
 
 Router.get('/permissions', async (req, res) => {
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (errored) return res.status(400).json({ error: er })
     res.status(200).json({ uid, isAdmin, permissions })
 })
@@ -59,7 +59,7 @@ Router.get('/permissions', async (req, res) => {
 Router.get('/all', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin && !permissions.view_users) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
@@ -85,7 +85,7 @@ Router.get('/all', async (req, res) => {
 Router.get('/all/admin', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
@@ -102,7 +102,7 @@ Router.get('/all/admin', async (req, res) => {
 Router.get('/names', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin && !permissions.view_users) return res.status(401).json({ error: 'Forbidden' })
 
     // Establish SQL Connection
@@ -120,7 +120,7 @@ Router.get('/names', async (req, res) => {
 Router.post('/perm/edit', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (errored) return res.status(500).json({ er })
     if (!isAdmin && !permissions.edit_users) return res.status(401).json({ error: 'Forbidden' })
 
@@ -149,7 +149,7 @@ Router.post('/perm/edit', async (req, res) => {
 Router.post('/perm/edit/admin', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Data validation
@@ -175,7 +175,7 @@ Router.post('/perm/edit/admin', async (req, res) => {
 Router.post('/management/edit/archive', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
 
     // Data validation
@@ -201,7 +201,7 @@ Router.post('/management/edit/archive', async (req, res) => {
 Router.post('/management/edit/title', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (errored) return res.status(500).json({ er })
     if (!isAdmin && (!permissions || !permissions.edit_users)) return res.status(401).json({ error: 'Forbidden' })
 

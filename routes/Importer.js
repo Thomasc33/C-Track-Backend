@@ -9,7 +9,7 @@ const deviceTypes = require('../settings.json').deviceTypes
 Router.post('/asset', async (req, res) => {
     // Check for importer permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin && !permissions.use_importer) return res.status(403).json({ error: 'Forbidden' })
 
     // Get json data
@@ -75,7 +75,7 @@ Router.post('/asset', async (req, res) => {
 Router.post('/model', async (req, res) => {
     // Check for importer permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin && !permissions.use_importer) return res.status(403).json({ error: 'Forbidden' })
 
     // Get json data
@@ -120,7 +120,7 @@ Router.post('/model', async (req, res) => {
 Router.post('/legal', async (req, res) => {
     // Check for importer permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { errored: true, er } })
+        .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin && !permissions.use_importer) return res.status(403).json({ error: 'Forbidden' })
 
     // Get json data
