@@ -107,7 +107,7 @@ Router.post('/user/edit', async (req, res) => {
 
     // Get Params
     const data = req.body;
-    let { id, change, value, total_hours, uid } = data
+    let { id, change, value, total_hours } = data
     if (uid && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
     if (!uid) uid = t_uid
 
