@@ -153,12 +153,11 @@ Router.delete('/user/del/:id/:date/:uid', async (req, res) => {
         .catch(er => { return { errored: true, er } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     let t_uid = uid
-    uid = req.body.uid
 
     // Get Params
     const id = req.params.id
     const date = req.params.date
-    let uid = req.params.uid
+    uid = req.params.uid
     if (uid !== 'none' && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
     if (uid == 'none') uid = t_uid
 
