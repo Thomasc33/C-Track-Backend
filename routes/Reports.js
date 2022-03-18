@@ -1022,7 +1022,6 @@ Router.get('/excel', async (req, res) => {
                 if (cols - 1 == j) d[i][j].rightBorderStyle = 'thick'
             }
         }
-        console.log(d)
         return d
     }
 
