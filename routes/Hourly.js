@@ -147,7 +147,7 @@ Router.post('/user/edit', async (req, res) => {
     return res.status(200).json({ message: 'Success' })
 })
 
-Router.delete('/user/del/:id/:date/:uid', async (req, res) => {
+Router.delete('/user/del', async (req, res) => {
     // Get UID from header
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -155,9 +155,9 @@ Router.delete('/user/del/:id/:date/:uid', async (req, res) => {
     let t_uid = uid
 
     // Get Params
-    const id = req.params.id
-    const date = req.params.date
-    uid = req.params.uid
+    const id = req.query.id
+    const date = req.query.date
+    uid = req.query.uid
     if (uid !== 'none' && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
     if (uid == 'none') uid = t_uid
 
