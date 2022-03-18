@@ -231,15 +231,19 @@ Router.post('/user/edit', async (req, res) => {
     }
 })
 
-Router.delete('/user/del/:id/:date', async (req, res) => {
+Router.delete('/user/del', async (req, res) => {
     // Get UID from header
-    let uid = await tokenParsing.toUID(req.headers.authorization)
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
 
     // Get Params
-    const id = req.params.id
-    const date = req.params.date
+    const id = req.query.id
+    const date = req.query.date
+    if (req.query.uid) {
+        if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
+        uid = req.query.uid
+    }
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
