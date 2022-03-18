@@ -60,12 +60,19 @@ Router.get('/user/:date', async (req, res) => {
 
 Router.post('/user/new', async (req, res) => {
     // Get UID from header
-    let uid = await tokenParsing.toUID(req.headers.authorization)
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+
     // Get Params
     const data = req.body;
     let { date, job_code, asset_id, notes } = data
+
+    // Check if editing others
+    if (data.uid) {
+        if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
+        uid = data.uid
+    }
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -128,13 +135,19 @@ Router.post('/user/new', async (req, res) => {
 
 Router.post('/user/edit', async (req, res) => {
     // Get UID from header
-    let uid = await tokenParsing.toUID(req.headers.authorization)
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
 
     // Get Params
     const { id, change, value } = req.body;
     let asset_id
+
+    // Check if editing others
+    if (req.body.uid) {
+        if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
+        uid = req.body.uid
+    }
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
