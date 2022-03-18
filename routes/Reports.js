@@ -4,6 +4,13 @@ const sql = require('mssql')
 const axios = require('axios').default
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
+const reportTunables = require('../reportTunables.json')
+const SnipeBearer = require('../settings.json').snipeBearer
+const snipeAPILink = 'https://cpoc.snipe-it.io/api/v1'
+const jobIdToSnipe = require('../snipeJobCodeConversion.json')
+const userIdToSnipe = require('../snipeUserConversion.json')
+const snipeToJobId = Object.fromEntries(Object.entries(jobIdToSnipe).map(a => a.reverse()))
+const snipeToUID = Object.fromEntries(Object.entries(userIdToSnipe).map(a => a.reverse()))
 
 Router.get('/users/daily/:date', async (req, res) => {
     // Check token using toUid function
@@ -213,137 +220,7 @@ Router.get('/asset/user/:uid/:date', async (req, res) => {
     return res.status(200).json(data)
 })
 
-Router.post('/asset/user/:uid/new', async (req, res) => {
-    // Validate requestor and check their permissions
-    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
-
-    // Get UID from params
-    uid = req.params.uid
-
-    // Get Params
-    const data = req.body;
-    let { date, job_code, asset_id, notes } = data
-
-    // Establish SQL Connection
-    let pool = await sql.connect(config)
-
-    // Validate Data
-    let errored = false
-    let issues = []
-    if (!date || date.replace(/\d{4}-\d{2}-\d{2}/g, '') !== '') {
-        errored = true
-        issues.push('Issue with Date format/ Invalid Date')
-    }
-    if (!job_code || (typeof (job_code) == 'string' && job_code.replace(/\d/gi, '') !== '')) {
-        errored = true
-        issues.push('Invalid Job Code or Job Code not type Int')
-    }
-    if (!asset_id) {
-        errored = true
-        issues.push('Asset ID not provided')
-    }
-    if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
-
-    // Send to DB
-    let result = await pool.request().query(`INSERT INTO asset_tracking (user_id, asset_id, job_code, date, notes) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'})`)
-        .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (result.isErrored) {
-        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
-    }
-
-    // Return
-    return res.status(200).json({ message: 'Success' })
-})
-
-Router.post('/asset/user/:uid/edit', async (req, res) => {
-    // Validate requestor and check their permissions
-    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
-
-    // Get Params
-    uid = req.params.uid
-    const data = req.body;
-    let { id, change, value } = data
-
-    // Establish SQL Connection
-    let pool = await sql.connect(config)
-
-    // Validate Data
-    let errored = false
-    let issues = []
-    if (!id || (typeof (id) == 'string' && id.replace(/\d/gi, '') !== '')) {
-        errored = true
-        issues.push(`Invalid History ID`)
-    }
-    switch (typeOfs[change]) {
-        case 'date':
-            if (!value || value.replace(/\d{4}-\d{2}-\d{2}/g, '') !== '') {
-                errored = true
-                issues.push('Issue with Date format/ Invalid Date')
-            }
-            break;
-        case 'asset': //no data validation yet
-            break;
-        case 'null': //no data validation
-            break;
-    }
-    if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
-    if (!typeOfToColumn[change]) return res.status(500).json({ message: 'Unsuccessful', issues: 'Unknown column name to change' })
-
-    // Send to DB
-    let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${uid}'`)
-        .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (result.isErrored) {
-        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
-    }
-
-    // Return
-    return res.status(200).json({ message: 'Success' })
-})
-
-Router.delete('/asset/user/:uid/del/:id/:date', async (req, res) => {
-    // Validate requestor and check their permissions
-    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
-
-    // Get params
-    uid = req.params.uid
-    const id = req.params.id
-    const date = req.params.date
-
-    // Establish SQL Connection
-    let pool = await sql.connect(config)
-
-    // Data validation for UID. Check for UID, and Check if UID exists
-    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
-    let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
-
-    if (!id || id == '') return res.status(400).json({ message: 'No ID given' })
-    resu = await pool.request().query(`SELECT id FROM asset_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
-    if (resu == 'Invalid ID') return res.status(400).json({ message: 'Invalid ID or not found' })
-
-    let asset_tracking = await pool.request().query(`DELETE FROM asset_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
-        .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (asset_tracking.isErrored) {
-        // Check for specific errors
-
-        // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
-    }
-
-    // Return Data
-    return res.status(200).json({ message: 'Success' })
-})
 // Done Assets, begin hourly
-
 Router.get('/hourly/user/:uid/:date', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
@@ -381,142 +258,6 @@ Router.get('/hourly/user/:uid/:date', async (req, res) => {
     return res.status(200).json(data)
 })
 
-Router.post('/hourly/user/:uid/new', async (req, res) => {
-    // Validate requestor and check their permissions
-    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
-
-    // Get Params
-    uid = req.params.uid
-    const data = req.body;
-    let { date, job_code, startTime, endTime, total_hours, notes } = data
-
-    // Establish SQL Connection
-    let pool = await sql.connect(config)
-
-    // Validate Data
-    let errored = false
-    let issues = []
-    if (!date || date.replace(/\d{4}-\d{2}-\d{2}/g, '') !== '') {
-        errored = true
-        issues.push('Issue with Date format/ Invalid Date')
-    }
-    if (!startTime || startTime.replace(/\d+:\d{2}/g, '') !== '' || parseInt(startTime.split(':')[0] > 24) || parseInt(startTime.split(':')[1] > 45) || parseInt(startTime.split(':')[1]) % 15 !== 0) {
-        errored = true
-        issues.push('Issue with Start Time')
-    }
-    if (!endTime || endTime.replace(/\d+:\d{2}/g, '') !== '' || parseInt(endTime.split(':')[0] > 24) || parseInt(endTime.split(':')[1] > 45) || parseInt(endTime.split(':')[1]) % 15 !== 0) {
-        errored = true
-        issues.push('Issue with End Time')
-    }
-    if (!total_hours || `${total_hours}`.replace(/[\d.]/g, '') !== '') {
-        errored = true
-        issues.push('Issue with Total Hours')
-    }
-    if (!job_code || (typeof (job_code) == 'string' && job_code.replace(/\d/gi, '') !== '')) {
-        errored = true
-        issues.push('Invalid Job Code or Job Code not type Int')
-    }
-    if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
-
-    // Send to DB
-    let result = await pool.request().query(`INSERT INTO hourly_tracking (job_code, user_id, start_time, end_time, notes, hours, date) VALUES ('${job_code}', '${uid}', '${startTime}', '${endTime}', ${notes ? `'${notes}'` : 'null'}, '${total_hours}', '${date}')`)
-        .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (result.isErrored) {
-        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
-    }
-
-    // Return
-    return res.status(200).json({ message: 'Success' })
-})
-
-Router.post('/hourly/user/:uid/edit', async (req, res) => {
-    // Validate requestor and check their permissions
-    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
-
-    // Get Params
-    uid = req.params.uid
-    const data = req.body;
-    let { id, change, value, total_hours } = data
-
-    // Establish SQL Connection
-    let pool = await sql.connect(config)
-
-    // Validate Data
-    let errored = false
-    let issues = []
-    if (!id || (typeof (id) == 'string' && id.replace(/\d/gi, '') !== '')) {
-        errored = true
-        issues.push(`Invalid History ID`)
-    }
-    switch (change) {
-        case 'date':
-            if (!value || value.replace(/\d{4}-\d{2}-\d{2}/g, '') !== '') {
-                errored = true
-                issues.push('Issue with Date format/ Invalid Date')
-            }
-            break;
-        case 'asset': //no data validation yet
-            break;
-        case 'null': //no data validation
-            break;
-    }
-    if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
-    if (!typeOfToColumn[change]) return res.status(500).json({ message: 'Unsuccessful', issues: 'Unknown column name to change' })
-
-    // Send to DB
-    let result = await pool.request().query(`UPDATE hourly_tracking SET ${typeOfToColumn[change]} = '${value}'${total_hours ? `, hours = ${total_hours}` : ''} WHERE id = '${id}' AND user_id = '${uid}'`)
-        .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (result.isErrored) {
-        return res.status(400).json({ message: 'Unsuccessful', error: result.error })
-    }
-
-    // Return
-    return res.status(200).json({ message: 'Success' })
-})
-
-Router.delete('/hourly/user/:uid/del/:id/:date', async (req, res) => {
-    // Validate requestor and check their permissions
-    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
-        .catch(er => { return { uid: { errored: true, er } } })
-    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
-    if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
-
-    // Get Params
-    uid = req.params.uid
-    const id = req.params.id
-    const date = req.params.date
-
-    // Establish SQL Connection
-    let pool = await sql.connect(config)
-
-    // Data validation for UID. Check for UID, and Check if UID exists
-    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
-    let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
-
-    if (!id || id == '') return res.status(400).json({ message: 'No ID given' })
-    resu = await pool.request().query(`SELECT id FROM hourly_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
-    if (resu == 'Invalid ID') return res.status(400).json({ message: 'Invalid ID or not found' })
-
-    let hourly_tracking = await pool.request().query(`DELETE FROM hourly_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
-        .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (hourly_tracking.isErrored) {
-        // Check for specific errors
-
-        // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
-    }
-
-    // Return Data
-    return res.status(200).json({ message: 'Success' })
-})
-
 Router.post('/generate', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -550,9 +291,7 @@ Router.post('/generate', async (req, res) => {
     let applicableUsers = new Set()
     if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
-    let applicableUserString = ''
-    applicableUsers.forEach(v => applicableUserString += `${v},`)
-    applicableUserString.substring(0, applicableUserString.length - 1)
+    let applicableUserString = [...applicableUsers].join(',')
 
 
     // Get Job Code Names
@@ -571,62 +310,9 @@ Router.post('/generate', async (req, res) => {
      *              timesheets:[ts_obj]       
      *      }
      * }
-     * 
      */
 
-    const ts_authorization = await tokenParsing.getTSheetsToken(req.headers.authorization)
-        .then(d => d.token)
-        .catch(er => { return null })
-
-    let tsheets_data = {}
-
-    if (ts_authorization) {
-        let job_code_cache = {} //tsid:db id
-        let loop = true, failed = false
-        let page = 1
-        do {
-            let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
-                params: {
-                    user_ids: applicableUserString,
-                    start_date: date,
-                    end_date: range || date,
-                    page: page
-                }, headers: {
-                    Authorization: ts_authorization
-                }
-            }).catch(er => { failed = true })
-            if (failed) break;
-            if (!ts_call.data.results) { failed = true; break; }
-
-            let sheets = ts_call.data.results.timesheets
-
-            if (sheets.more) page++
-            else loop = false
-
-            for (let i of sheets) { //this might have to be 'for in'
-                if (!tsheets_data[i.date]) tsheets_data[i.date] = {}
-                if (!tsheets_data[i.date][i.user_id]) tsheets_data[i.date][i.user_id] = { userObj: sheets.supplemental_data.users[i.user_id], timesheets: [] }
-                if (job_code_cache[i.jobcode_id]) i.jobCode = job_code_cache[i.jobcode_id]
-                else {
-                    let f = false
-                    for (let j in job_codes) {
-                        if (j.name.replace(/[:-]/gi, ' ').toLowerCase() == sheets.supplemental_data.jobcodes[i.jobcode_id].name.replace(/[:-]/gi, ' ').toLowerCase()) {
-                            f = true
-                            i.jobCode = j
-                            job_code_cache[i.jobcode_id] = j
-                            break;
-                        }
-                    }
-                    if (!f) i.jobCode = null
-                }
-                i.count = i.notes ? i.notes.replace(/[:-]/g, ' ').split(' ')[0] : 0
-                if (isNaN(i)) i = 0
-                i.hours = i.duration / 3600
-                tsheets_data[i.date][i.user_id].timesheets.push(i)
-            }
-        } while (loop)
-    }
-    if (Object.keys(tsheets_data).length == 0) tsheets_data = null
+    const tsheets_data = await getTsheetsData(req.headers.authorization, applicableUserString, range, date)
 
 
     // The fun stuff :)
@@ -935,7 +621,7 @@ Router.get('/jobusage/:type', async (req, res) => {
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (hq_q && hq_q.isErrored) return res.status(500).json({ message: 'Error fetching hourly tracking records' })
 
-    let data = [['Date', jq.map(m => m.job_code)]]
+    let data = [['Date'], ...jq.map(m => [m.job_code])]
     let hrly_data = {}
     let ppd_data = {}
 
@@ -953,11 +639,12 @@ Router.get('/jobusage/:type', async (req, res) => {
     }
 
     for (let i of [...months].reverse()) {
-        let row = [`${i.month}-${i.year}`, ...jq.map(m => {
-            if (m.is_hourly) return hrly_data[m.job_code][`${i.month}-${i.year}`]
-            return ppd_data[m.job_code][`${i.month}-${i.year}`]
-        })]
-        data.push(row)
+        data[0].push(`${i.month}-${i.year}`)
+        for (let j in jq) {
+            let m = jq[j]
+            if (m.is_hourly) data[parseInt(j) + 1].push(hrly_data[m.job_code][`${i.month}-${i.year}`])
+            else data[parseInt(j) + 1].push(ppd_data[m.job_code][`${i.month}-${i.year}`])
+        }
     }
 
     res.status(200).json({ data })
@@ -972,15 +659,387 @@ Router.get('/excel', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    // Get and check UID
-    uid = req.params.uid
-    let from = req.params.from
-    let to = req.params.to
-    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
-    let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
-    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
+    // Get Data range
+    const range = req.query.from
+    const date = req.query.to
+    let start, end
+    if (!(range && date)) {// Remove 7 days from start
+        let sd = new Date(date)
+        sd.setDate(sd.getDate() - 6)
+        start = sd.toISOString().split('T')[0]
+        end = date
+    } else { start = range, end = date } // Report with range
 
-    return res.status(200).json(data)
+    // Start the snipe 
+    const snipeData = getSnipeData(start)
+
+    // Get Asset and Houly Data
+    let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+        .then(d => d.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (asset_tracking_query && asset_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
+
+    let hourly_tracking_query = await pool.request().query(`SELECT * FROM hourly_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+        .then(d => d.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (hourly_tracking_query && hourly_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching hourly tracking records' })
+
+    if (!asset_tracking_query && !hourly_tracking_query) return res.status(409).json({ message: 'No data to report on' })
+
+    let five_day_asset_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE date >= '${start}' AND date <= '${end}'`)
+        .then(d => d.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    let five_day_hourly_query = await pool.request().query(`SELECT * FROM hourly_tracking WHERE date >= '${start}' AND date <= '${end}'`)
+        .then(d => d.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+
+    // Get user name object
+    let usernames = {}
+    let user_query = await pool.request().query(`SELECT id,name FROM users`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (user_query.isErrored) return res.status(500).json({ message: 'Error fetching users' })
+    for (let i of user_query.recordset) usernames[i.id] = i.name
+
+    let applicableUsers = new Set()
+    if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
+    if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
+    let applicableUserString = [...applicableUsers].join(',')
+
+    // Get Tsheets Data
+    const tsheets_data = await getTsheetsData(req.headers.authorization, applicableUserString, start, end)
+
+    // Get Job Code Names
+    let job_codes = {}
+    let job_code_query = await pool.request().query(`SELECT id,job_code,price,hourly_goal FROM jobs`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price, hourly_goal: i.hourly_goal }
+
+    const data = [
+        [{ value: 'Report Date' }],
+        [{ value: `${range ? `${range}-` : ''}${date}`, fontWeight: 'bold' }],
+        [],
+        [{ value: 'Total Revenue', leftBorderStyle: 'thick', topBorderStyle: 'thick' }, { value: 0, topBorderStyle: 'thick', rightBorderStyle: 'thick' }],
+        [{ value: 'Total Hours', leftBorderStyle: 'thick' }, { value: 0, rightBorderStyle: 'thick' }],
+        [{ value: 'Average Hourly Revenue', leftBorderStyle: 'thick', bottomBorderStyle: 'thick' }, { value: 0, bottomBorderStyle: 'thick', rightBorderStyle: 'thick' }],
+        [],
+        [],
+        []
+    ]
+    let total_hours = 0
+    let total_revenue = 0
+    let discrepancies = {}
+    for (let i of applicableUsers) discrepancies[i] = []
+
+    function getUserData(id) {
+        let d = []
+
+        // Get list of dates
+        let dates = []
+        if (range) {
+            let start = new Date(date)
+            let end = new Date(range)
+            while (start <= end) {
+                dates.push(new Date(start))
+                start = start.addDays(1)
+            }
+        }
+
+        d.push([{ fontSize: 24, value: usernames[id] || id }])
+        d.push([{ value: 'Job Code', borderStyle: 'thin', backgroundColor: '#34a1eb' }])
+
+        if (range) {
+            d[1].push({ value: 'Total Count' }, { value: 'Total Revenue' }, { value: 'Average Revenue/Hr' }, { value: 'Average Count/Hr' })
+            for (let i of dates) {
+                let s = i.toISOString().split('T')[0].substring(5)
+                d[1].push({ value: `${s} #` }, { value: `${s} $` }, { value: `${s} TS-Hr` })
+            }
+        } else {
+            d[1].push({ value: '$ Per Job', borderStyle: 'thin', backgroundColor: '#34a1eb' },
+                { value: 'Hours/Day', borderStyle: 'thin', backgroundColor: '#34a1eb' },
+                { value: 'Count/Day', borderStyle: 'thin', backgroundColor: '#34a1eb' },
+                { value: 'Goal/Hr', borderStyle: 'thin', backgroundColor: '#34a1eb' },
+                { value: 'Average Count/Hour', borderStyle: 'thin', backgroundColor: '#34a1eb' },
+                { value: 'Revenue', borderStyle: 'thin', backgroundColor: '#34a1eb' },
+                { value: 'Revenue/Hr', borderStyle: 'thin', backgroundColor: '#34a1eb' })
+        }
+
+        let assetJobCodes = new Set()
+        let hourlyJobCodes = new Set()
+        if (asset_tracking_query) for (let i of asset_tracking_query) if (i.user_id == id) assetJobCodes.add(i.job_code)
+        if (hourly_tracking_query) for (let i of hourly_tracking_query) if (i.user_id == id) hourlyJobCodes.add(i.job_code)
+
+        let totalrevenue = 0.0
+        let totalhours = 0.0
+        let fiveDayRevenue = 0.0
+        let fiveDayHours = 0.0
+
+        let ind = 0
+        assetJobCodes.forEach(jc => {
+            //count totals
+            if (range) {
+                let row = [], revs = []
+                let tot_count = 0, tot_ts_count = 0, tot_rev = 0, ave_rev, tot_h
+                for (let d of dates) {
+                    let h = 0, c = 0
+                    d = d.toISOString().split('T')[0]
+                    for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                    for (let i of asset_tracking_query) {
+                        try {
+                            if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) c++
+                        } catch (e) { console.log(e) }
+                    }
+                    let r = parseFloat(job_codes[jc].price) * parseFloat(c)
+                    row.push({ value: c }, { value: r }, { value: h })
+                    totalhours += h //For user average
+                    tot_h += h // For row average
+                    revs.push({ value: r })
+                    tot_count += c
+                    tot_rev += r
+                }
+                ave_rev = revs.reduce(a, b => a + b) / revs.length // Average
+                row.unshift({ value: tot_count }, { value: tot_ts_count }, { value: tot_rev }, { value: ave_rev }, { value: tot_count / tot_h })
+            }
+            else {
+                //job price, hours spent, count, goal, count/hour, revenue, revenue/hour
+                let job_price = 0, ts_hours = 0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = []
+
+                job_price = job_codes[jc].price
+                goal = job_codes[jc].hourly_goal || '-'
+
+                if (tsheets_data[date]) for (let i of tsheets_data[date][id]) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+
+                let assets = []
+                for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
+                count = assets.length
+
+                if (snipeData && snipeData[date] && snipeData[date][id] && snipeData[date][id][jc]) {
+                    snipe_count = snipeData[date][id][jc].length;
+                    unique = [...assets.filter(e => snipeData[date][id][jc].indexOf(e) === -1), ...snipeData[date][id][jc].filter(e => assets.indexOf(e) === -1)]
+                } else {
+                    unique = assets.join(', ')
+                }
+
+                revenue = parseFloat(job_codes[jc].price) * parseFloat(count)
+                totalrevenue += revenue
+                totalhours += ts_hours
+
+                if (goal == '-') hrly_count = '-'
+                else hrly_count = count / (ts_hours || count)
+
+                hrly_revenue = revenue / ts_hours
+                if (revenue == 0) hrly_revenue = '-'
+                if (hrly_revenue == Infinity) hrly_revenue = 0
+
+                // discrepancy check
+                if (ts_count !== count || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
+
+                d.push([
+                    { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: job_price, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: ts_hours, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: count, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: goal, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    {
+                        value: hrly_count, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null,
+                        backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor :
+                            hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor :
+                                ind % 2 == 1 ? '#34a1eb' : undefined
+                    },
+                    { value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    {
+                        value: hrly_revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null,
+                        backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor :
+                            hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
+                                ind % 2 == 1 ? '#34a1eb' : undefined
+                    }])
+
+                ind++
+            }
+        })
+
+        hourlyJobCodes.forEach(jc => {
+            //count totals
+            if (range) {
+                let row = [], revs = []
+                let tot_count = 0, tot_ts_count = 0, tot_rev = 0, ave_rev, tot_h
+                for (let d of dates) {
+                    let h = 0, c = 0
+                    d = d.toISOString().split('T')[0]
+                    for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                    for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) count += i.hours
+                    let r = parseFloat(job_codes[jc].price) * parseFloat(c)
+                    row.push({ value: c }, { value: r }, { value: h })
+                    totalhours += h //For user average
+                    tot_h += h // For row average
+                    revs.push({ value: r })
+                    tot_count += c
+                    tot_rev += r
+                }
+                ave_rev = revs.reduce(a, b => a + b) / revs.length // Average
+                row.unshift(tot_count, tot_ts_count, tot_rev, ave_rev, tot_count / tot_h)
+                d.push(row)
+
+            }
+            else {
+                let job_price = 0, ts_hours = 0, ts_count = 0, count = 0, revenue = 0, hrly_revenue = 0
+
+                job_price = job_codes[jc].price
+
+                if (tsheets_data[date])
+                    for (let i of tsheets_data[date][id]) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+
+                for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
+
+                revenue = parseFloat(job_codes[jc].price) * parseFloat(count)
+                totalrevenue += revenue
+                totalhours += ts_hours
+
+                hrly_revenue = job_price
+
+                //discrepancy check
+                if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date })
+
+                d.push([
+                    { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: job_price, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: ts_hours || count, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    { value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? '#34a1eb' : undefined },
+                    {
+                        value: hrly_revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == hourlyJobCodes.size ? 'thin' : null,
+                        backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor :
+                            hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
+                                ind % 2 == 1 ? '#34a1eb' : undefined
+                    }])
+                ind++
+            }
+        })
+
+        // Five day hours counter, assumed tsheets_data was grabbed with start date-6days
+        if (range) for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id]) fiveDayHours += j.hours
+
+        // Five day revenue counter
+        five_day_asset_query.forEach(row => { fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
+        five_day_hourly_query.forEach(row => { fiveDayRevenue += parseFloat(job_codes[row.job_code].price) * parseFloat(row.hours) })
+
+        // Totals section
+        let temp_rows = [[
+            { value: 'Total Revenue', topBorderStyle: 'thin' },
+            { value: totalrevenue, topBorderStyle: 'thin', rightBorderStyle: 'thin' },
+            { value: '5-Day Revenue', topBorderStyle: 'thin' },
+            { value: fiveDayRevenue, topBorderStyle: 'thin', rightBorderStyle: 'thin' },
+        ], [
+            { value: 'Total Hours' },
+            { value: totalhours, rightBorderStyle: 'thin' },
+            { value: '5-Day Hours' },
+            { value: fiveDayHours, rightBorderStyle: 'thin' },
+        ], [
+            { value: 'Hourly Revenue', },
+            { value: totalhours ? totalrevenue / totalhours : 0, rightBorderStyle: 'thin' },
+            { value: '5-Day Hourly Revenue' },
+            { value: fiveDayHours ? fiveDayRevenue / fiveDayHours : 0, rightBorderStyle: 'thin' },
+        ]]
+        if (range && date) { temp_rows[0][2] = {}; temp_rows[0][3] = {}; temp_rows[1][2] = {}; temp_rows[1][3] = {}; temp_rows[2][2] = {}; temp_rows[2][3] = {} }
+        d.push([], [], ...temp_rows)
+
+        // Add to all users totals
+        total_revenue += totalrevenue
+        total_hours += totalhours
+
+        // Add thick border to entire section
+        let cols = 0, rows = d.length
+        for (let i of d) if (i.length > cols) cols = i.length
+
+        //top&bottom
+        for (let i in [...Array(cols)]) {
+            if (!d[0][i]) d[0][i] = {}
+            if (!d[d.length - 1][i]) d[d.length - 1][i] = {}
+            d[0][i].topBorderStyle = 'thick'
+            d[d.length - 1][i].bottomBorderStyle = 'thick'
+        }
+        //left&right
+        for (let i in [...Array(rows)]) {
+            if (!d[i][0]) d[i][0] = {}
+            d[i][0].leftBorderStyle = 'thick'
+            for (let j = 0; j <= cols; j++) {
+                if (!d[i][j]) d[i][j] = {}
+                if (cols - 1 == j) d[i][j].rightBorderStyle = 'thick'
+            }
+        }
+        return d
+    }
+
+    function getDiscrepancy(id) {
+
+        let d = []
+
+        // Get list of dates
+        let dates = []
+        if (range) {
+            let start = new Date(date)
+            let end = new Date(range)
+            while (start <= end) {
+                dates.push(new Date(start))
+                start = start.addDays(1)
+            }
+        }
+
+        d.push([{ fontSize: 24, value: usernames[id] || id }, { value: 'Discrepancy Report' }], [])
+        d.push([{ value: 'Job Code' }, { value: 'Date' }, { value: 'C-Track Count' }, { value: 'T-Sheets Count' }, { value: 'Snipe Count' }, { value: 'Unique Assets (Comma Seperated)' }])
+
+        //{id:[discrepancies]}
+        //jc, ts_count, count, snipe_count, date
+        for (let i of discrepancies[id]) {
+            d.push([
+                { value: job_codes[i.jc].name },
+                { value: i.date },
+                { value: i.count },
+                { value: i.ts_count || i.ts_hours },
+                { value: i.snipe_count || '-' },
+                { value: i.unique || '-' }
+            ])
+        }
+
+
+
+
+        // Add thick border to entire section
+        let cols = 0, rows = d.length
+        for (let i of d) if (i.length > cols) cols = i.length
+
+        //top&bottom
+        for (let i in [...Array(cols)]) {
+            if (!d[0][i]) d[0][i] = {}
+            if (!d[d.length - 1][i]) d[d.length - 1][i] = {}
+            d[0][i].topBorderStyle = 'thick'
+            d[d.length - 1][i].bottomBorderStyle = 'thick'
+        }
+        //left&right
+        for (let i in [...Array(rows)]) {
+            if (!d[i][0]) d[i][0] = {}
+            d[i][0].leftBorderStyle = 'thick'
+            for (let j = 0; j <= cols; j++) {
+                if (!d[i][j]) d[i][j] = {}
+                if (cols - 1 == j) d[i][j].rightBorderStyle = 'thick'
+            }
+        }
+        console.log(d)
+        return d
+    }
+
+    await snipeData
+    applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
+    applicableUsers.forEach(u => { if (discrepancies[u]) data.push(...getDiscrepancy(u), [], []) })
+
+
+    // Update global totals
+    data[3][1].value = total_revenue
+    data[4][1].value = total_hours
+    data[5][1].value = total_hours == 0 ? 0 : total_revenue / total_hours
+
+    // Set column widths
+    const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
+
+    return res.status(200).json({ data, columns })
 })
 
 
@@ -990,3 +1049,165 @@ function getDate(date) {
     date = new Date(date)
     return date.toISOString().split('T')[0]
 }
+
+
+/**
+ * date{
+ *      employee {
+ *              userObj:
+ *              timesheets:[ts_obj]       
+ *      }
+ * }
+ */
+/**
+ * 
+ * @param {String} authorization 
+ * @param {String} applicableUserString 
+ * @param {Date} start The start date
+ * @param {Date} end The end date
+ * @returns {Object} tsheets_data
+ */
+async function getTsheetsData(authorization, applicableUserString, start, end) {
+    const ts_authorization = await tokenParsing.getTSheetsToken(authorization)
+        .then(d => d.token)
+        .catch(er => { return null })
+    if (!ts_authorization) return {}
+
+    const tsheets_data = {}
+
+    if (ts_authorization) {
+        let job_code_cache = {} //tsid:db id
+        let loop = true, failed = false
+        let page = 1
+        do {
+            let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
+                params: {
+                    user_ids: applicableUserString,
+                    start_date: start,
+                    end_date: end || start,
+                    page: page
+                }, headers: {
+                    Authorization: ts_authorization
+                }
+            }).catch(er => { failed = true })
+            if (failed) break;
+            if (!ts_call.data.results) { failed = true; break; }
+
+            let sheets = ts_call.data.results.timesheets
+
+            if (sheets.more) page++
+            else loop = false
+
+            for (let i of sheets) { //this might have to be 'for in'
+                if (!tsheets_data[i.date]) tsheets_data[i.date] = {}
+                if (!tsheets_data[i.date][i.user_id]) tsheets_data[i.date][i.user_id] = { userObj: sheets.supplemental_data.users[i.user_id], timesheets: [] }
+                if (job_code_cache[i.jobcode_id]) i.jobCode = job_code_cache[i.jobcode_id]
+                else {
+                    let f = false
+                    for (let j in job_codes) {
+                        if (j.name.replace(/[:-]/gi, ' ').toLowerCase() == sheets.supplemental_data.jobcodes[i.jobcode_id].name.replace(/[:-]/gi, ' ').toLowerCase()) {
+                            f = true
+                            i.jobCode = j
+                            job_code_cache[i.jobcode_id] = j
+                            break;
+                        }
+                    }
+                    if (!f) i.jobCode = null
+                }
+                i.count = i.notes ? i.notes.replace(/[:-]/g, ' ').split(' ')[0] : 0
+                if (isNaN(i)) i = 0
+                i.hours = i.duration / 3600
+                tsheets_data[i.date][i.user_id].timesheets.push(i)
+            }
+        } while (loop)
+    }
+    if (Object.keys(tsheets_data).length == 0) tsheets_data = null
+    return tsheets_data
+}
+
+/**
+ * {date
+ *      employee {
+ *              jobcode: count     
+ *      }
+ * }
+ */
+function getSnipeData(start) {
+    return new Promise(async (res, rej) => {
+        let startD = new Date(start)
+        const data = {}
+        let today = new Date().toISOString().split('T')[0]
+        data[today] = {}
+        while (startD < Date.now()) { data[startD.toISOString().split('T')[0]] = {}; startD.setDate(startD.getDate() + 1) }
+        startD = new Date(start)
+
+        let offset = 0, cont = true
+        while (cont) {
+            // Get data
+            const d = await axios.get(`${snipeAPILink}/reports/activity?action_type=update&offset=${offset}&limit=${200}`, { headers: { Authorization: SnipeBearer } }).then(d => d.data.rows).catch(er => { console.log(er); return { error: true } })
+            if (d.error) return rej()
+
+            // Loop logic/condition
+            let lastDate = new Date(d[d.length - 1].updated_at.datetime.split(' ')[0])
+            if (lastDate <= startD) cont = false
+            offset += d.length
+
+            // Sort Data
+            for (let i of d) {
+                let uid = snipeToUID[i.admin.id]
+                let day = new Date(i.updated_at.datetime).toISOString().split('T')[0]
+                if (!uid) continue
+                if (day < startD || !data[day]) continue
+                if (!i.log_meta || !i.log_meta.status_id) continue
+                let change = i.log_meta.status_id.new
+                if (!change) continue
+                change = snipeToJobId[change]
+                let assetTag = i.item.name.replace(/\(20..\)/g, '').match(/\((.*)\)/g)
+                if (assetTag.length == 0) continue
+                assetTag = assetTag[0].replace(/[\(\)]/g, '')
+                if (!data[day][uid]) data[day][uid] = {}
+                if (!data[day][uid][change]) data[day][uid][change] = [assetTag]
+                else data[day][uid][change].push(assetTag)
+            }
+        }
+        res(data)
+    })
+}
+
+/** Code to get all the job codes from snipe and match them to the db
+        let d = await axios.get(`${snipeAPILink}/statuslabels`, { headers: { Authorization: SnipeBearer } }).then(d => d.data)
+        let pool = await sql.connect({
+            "user": "NodeExpress",
+            "password": "J9:N*pJkh@5rsjX^",
+            "database": "Tracker",
+            "server": "192.168.205.221",
+            "options": {
+                "encrypt": false,
+                "trustServerCertificate": true
+            }
+        })
+        let job_codes = {}
+        let job_code_query = await pool.request().query(`SELECT id,job_code FROM jobs`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
+        for (let i of job_code_query.recordset) job_codes[i.id] = i.job_code
+        console.log(job_codes)
+        let dat = {}
+        for (let i of d.rows) {
+            let found = false
+            for (let j in job_codes) {
+                // console.log(job_codes[j], i.name)
+                if (job_codes[j].toLowerCase().replace(/[ :/]/gi, '') == i.name.toLowerCase().replace(/[ :/]/gi, '')) {
+                    found = true
+                    dat[j] = i.id
+                    console.log(`matched ${job_codes[j]} and ${i.name}`)
+                } else if (job_codes[j].toLowerCase().replace(/[ :/]/gi, '').replace(/repl/gi, 'r').replace(/depl/gi, 'd').replace(/hrly/gi, 'h').replace(/proj/gi, 'p').replace(/ship/gi, 's') == i.name.toLowerCase().replace(/[ :/]/gi, '').replace(/repl/gi, 'r').replace(/depl/gi, 'd').replace(/hrly/gi, 'h').replace(/proj/gi, 'p').replace(/ship/gi, 's')) {
+                    found = true
+                    dat[j] = i.id
+                    console.log(`matched ${job_codes[j]} and ${i.name}`)
+                }
+            }
+            if (!found) { dat[i.name] = i.id; console.log(`no match found for ${i.name}`) }
+        }
+        fs.writeFileSync('./snipeJobs.json', JSON.stringify(dat, null, 4))
+ */

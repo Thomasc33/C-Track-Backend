@@ -35,5 +35,6 @@
     "graphURL": "https://graph.microsoft.com/v1.0",
     "siteURL": "https://tr.cpocnc.com:2021",
     "webhookURL": "",
-    "holdWebhookURL": ""
+    "holdWebhookURL": "",
+    "snipeBearer": ""
 }

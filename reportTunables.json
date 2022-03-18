@@ -1,0 +1,7 @@
+{
+    "expectedHourly": 89.0,
+    "underPercent": 0.75,
+    "overPercent": 1.333,
+    "underColor": "#f56c42",
+    "overColor": "#f5d142"
+}
