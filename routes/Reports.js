@@ -807,9 +807,9 @@ Router.get('/excel', async (req, res) => {
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
                 count = assets.length
 
-                if (snipeData && snipeData[date] && snipeData[date][id] && snipeData[date][id][jc]) {
-                    snipe_count = snipeData[date][id][jc].length;
-                    let s = snipeData[date][id][jc].map(m => m.toUpperCase().trim())
+                if (snipeData && snipeData[date] && snipeData[date][id] && (snipeData[date][id][jc] || snipeData[date][id][parseInt(jc)])) {
+                    snipe_count = snipeData[date][id][jc] ? snipeData[date][id][jc].length : snipeData[date][id][parseInt(jc)].length;
+                    let s = snipeData[date][id][jc] ? snipeData[date][id][jc].map(m => m.toUpperCase().trim()) : snipeData[date][id][parseInt(jc)].map(m => m.toUpperCase().trim())
                     let a = assets.map(m => m.toUpperCase().trim())
                     unique = [...a.filter(e => s.indexOf(e) === -1), ...s.filter(e => a.indexOf(e) === -1)]
                 } else {
@@ -916,7 +916,7 @@ Router.get('/excel', async (req, res) => {
 
         if (snipeData && snipeData[date] && snipeData[date][id]) {
             for (let i in snipeData[date][id]) {
-                if (!assetJobCodes.has(parseInt(i))) {
+                if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
                     let ts_count, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
                     if (tsheets_data[date]) for (let i of tsheets_data[date][id]) if (i.jobCode == i) { ts_count += i.count }
                     discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
