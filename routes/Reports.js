@@ -913,9 +913,10 @@ Router.get('/excel', async (req, res) => {
                 ind++
             }
         })
-
+        console.log(assetJobCodes)
         if (snipeData && snipeData[date] && snipeData[date][id]) {
             for (let i in snipeData[date][id]) {
+                console.log(i)
                 if (!assetJobCodes.has(i)) {
                     let ts_count, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
                     if (tsheets_data[date]) for (let i of tsheets_data[date][id]) if (i.jobCode == i) { ts_count += i.count }
@@ -1001,7 +1002,6 @@ Router.get('/excel', async (req, res) => {
         //{id:[discrepancies]}
         //jc, ts_count, count, snipe_count, date
         for (let i of discrepancies[id]) {
-            console.log(i.jc, job_codes[i.jc])
             d.push([
                 { value: job_codes[i.jc] ? job_codes[i.jc].name : `Job ID: ${i.jc}` },
                 { value: i.date },
