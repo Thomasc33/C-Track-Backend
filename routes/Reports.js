@@ -828,7 +828,7 @@ Router.get('/excel', async (req, res) => {
                 if (hrly_revenue == Infinity) hrly_revenue = 0
 
                 // discrepancy check
-                if (job_codes[jc].requires_asset) if ((tsheets_data && ts_count !== count) || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
+                if (job_codes[jc].requires_asset) if ((tsheets_data.keys() && ts_count !== count) || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
 
                 d.push([
                     { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
