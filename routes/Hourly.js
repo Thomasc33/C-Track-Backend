@@ -158,8 +158,8 @@ Router.delete('/user/del', async (req, res) => {
     const id = req.query.id
     const date = req.query.date
     uid = req.query.uid
-    if (uid !== 'none' && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
-    if (uid == 'none') uid = t_uid
+    if (uid && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
+    if (!uid) uid = t_uid
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
