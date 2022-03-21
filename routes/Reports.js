@@ -914,6 +914,16 @@ Router.get('/excel', async (req, res) => {
             }
         })
 
+        if (snipeData && snipeData[date] && snipeData[date][id]) {
+            for (let i in snipeData[date][id]) {
+                if (!assetJobCodes.has(i)) {
+                    let ts_count, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
+                    if (tsheets_data[date]) for (let i of tsheets_data[date][id]) if (i.jobCode == i) { ts_count += i.count }
+                    discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
+                }
+            }
+        }
+
         let fiveDayRevenue = 0.0
         let fiveDayHours = 0.0
 
@@ -986,18 +996,19 @@ Router.get('/excel', async (req, res) => {
         }
 
         d.push([{ fontSize: 24, value: usernames[id] || id }, { value: 'Discrepancy Report' }], [])
-        d.push([{ value: 'Job Code' }, { value: 'Date' }, { value: 'C-Track Count' }, { value: 'T-Sheets Count' }, { value: 'Snipe Count' }, { value: 'Unique Assets (Comma Seperated)' }])
+        d.push([{ value: 'Job Code' }, { value: 'Date' }, { value: 'C-Track Count' }, { value: 'T-Sheets Count' }, { value: 'Snipe Count' }, { value: 'Unique Assets (Comma Seperated)', wrap: true }])
 
         //{id:[discrepancies]}
         //jc, ts_count, count, snipe_count, date
         for (let i of discrepancies[id]) {
+            console.log(i.jc, job_codes[i.jc])
             d.push([
-                { value: job_codes[i.jc].name },
+                { value: job_codes[i.jc] ? job_codes[i.jc].name : `Job ID: ${i.jc}` },
                 { value: i.date },
                 { value: i.count },
                 { value: i.ts_count || i.ts_hours },
                 { value: i.snipe_count || '0' },
-                { value: i.unique || '-' }
+                { value: i.unique || '-', wrap: true }
             ])
         }
 
