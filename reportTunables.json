@@ -3,5 +3,7 @@
     "underPercent": 0.75,
     "overPercent": 1.333,
     "underColor": "#f56c42",
-    "overColor": "#f5d142"
+    "overColor": "#f5d142",
+    "headerColor": "#4472c4",
+    "rowAlternatingColor": "#d9e1f2"
 }
