@@ -808,9 +808,14 @@ Router.get('/excel', async (req, res) => {
                 count = assets.length
 
                 if (snipeData && snipeData[date] && snipeData[date][id] && snipeData[date][id][jc]) {
+                    console.log('in')
+                    console.log(snipeData[date][id][jc])
                     snipe_count = snipeData[date][id][jc].length;
                     unique = [...assets.filter(e => snipeData[date][id][jc].indexOf(e) === -1), ...snipeData[date][id][jc].filter(e => assets.indexOf(e) === -1)]
                 } else {
+                    console.log('not in')
+                    console.log(snipeData)
+                    console.log(date, id, jc)
                     unique = assets.join(', ')
                 }
 
