@@ -557,10 +557,10 @@ Router.post('/assetsummary', async (req, res) => {
     if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
     for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price }
 
-    let data = [['id', 'user', 'uid', 'asset id', 'status', 'job code', 'date', 'time', 'notes']]
+    let data = [['user', 'asset id', 'status', 'date', 'time', 'notes']]
 
     for (let i of asset_tracking_query) {
-        data.push([i.id, usernames[i.user_id], i.user_id, i.asset_id, job_codes[i.job_code].name, i.job_code, i.date.toISOString().split('T')[0], i.time.toISOString().substring(11, 18), i.notes || ''])
+        data.push([usernames[i.user_id], i.asset_id, job_codes[i.job_code].name, i.date.toISOString().split('T')[0], i.time.toISOString().substring(11, 18), i.notes || ''])
     }
 
     res.status(200).json({ data })
@@ -621,7 +621,6 @@ Router.get('/jobusage/:type', async (req, res) => {
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (hq_q && hq_q.isErrored) return res.status(500).json({ message: 'Error fetching hourly tracking records' })
 
-    let data = [['Date'], ...jq.map(m => [m.job_code])]
     let hrly_data = {}
     let ppd_data = {}
 
@@ -637,6 +636,16 @@ Router.get('/jobusage/:type', async (req, res) => {
         if (!hrly_data[job]) hrly_data[job] = {}
         hrly_data[job][date] = hq_q[0][i]
     }
+
+    jq.sort((a, b) => { // this doesnt work rn
+        let a_count = 0, b_count = 0
+        if (a.is_hourly) a_count = Object.values(hrly_data[a.job_code]).reduce((a, b) => a + b)
+        else a_count = Object.values(ppd_data[a.job_code]).reduce((a, b) => a + b)
+        if (b.is_hourly) b_count = Object.values(hrly_data[b.job_code]).reduce((a, b) => a + b)
+        else b_count = Object.values(ppd_data[b.job_code]).reduce((a, b) => a + b)
+        return a > b ? -1 : a == b ? 0 : 1
+    })
+    let data = [['Date'], ...jq.map(m => [m.job_code])]
 
     for (let i of [...months].reverse()) {
         data[0].push(`${i.month}-${i.year}`)
@@ -813,7 +822,7 @@ Router.get('/excel', async (req, res) => {
                     let a = assets.map(m => m.toUpperCase().trim())
                     unique = [...a.filter(e => s.indexOf(e) === -1), ...s.filter(e => a.indexOf(e) === -1)]
                 } else {
-                    unique = assets.join(',')
+                    unique = assets.join(', ')
                 }
 
                 revenue = parseFloat(job_codes[jc].price) * parseFloat(count)

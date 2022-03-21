@@ -66,6 +66,18 @@ app.use((req, res, next) => {
 app.use(async (req, res, next) => {
     if (!req.headers.authorization) return res.status(403).json('Missing authorization header')
     next()
+    const ignoreLogURLS = [
+        '/favorites/asset',
+        '/user',
+        '/all',
+        '/all/asset',
+        '/permissions',
+        '/favorites/hrly',
+        '/all/hrly',
+        '/catalog'
+    ]
+    if (ignoreLogURLS.includes(req.url)) return
+    console.log(req.url, 'going')
     // Get UID
     const uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -82,17 +94,14 @@ app.use(async (req, res, next) => {
 
     // Attempt to get body
     const body = req.body
-    let bodyString = ''
-    for (let i in body) {
-        bodyString += `"${i.replace("'", '')}":"{${body[i]}}", `
-    }
+    let bodyString = JSON.stringify(body)
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
     // Return if required data points are missing
     if (!uid || !time) return
-
+    console.log(uid)
     // Send to DB
     pool.request().query(`INSERT INTO history ([user], time, ip_address, route, body) VALUES ('${uid}','${time}','${ip}','${route}','${bodyString}')`)
         .catch(er => { console.log('error when inserting into log: ', er) })
