@@ -913,11 +913,10 @@ Router.get('/excel', async (req, res) => {
                 ind++
             }
         })
-        console.log(assetJobCodes)
+
         if (snipeData && snipeData[date] && snipeData[date][id]) {
             for (let i in snipeData[date][id]) {
-                console.log(i)
-                if (!assetJobCodes.has(i)) {
+                if (!assetJobCodes.has(parseInt(i))) {
                     let ts_count, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
                     if (tsheets_data[date]) for (let i of tsheets_data[date][id]) if (i.jobCode == i) { ts_count += i.count }
                     discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
