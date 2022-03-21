@@ -706,10 +706,10 @@ Router.get('/excel', async (req, res) => {
 
     // Get Job Code Names
     let job_codes = {}
-    let job_code_query = await pool.request().query(`SELECT id,job_code,price,hourly_goal FROM jobs`)
+    let job_code_query = await pool.request().query(`SELECT id,job_code,price,hourly_goal,requires_asset FROM jobs`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
-    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price, hourly_goal: i.hourly_goal }
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price, hourly_goal: i.hourly_goal, requires_asset: i.requires_asset }
 
     const data = [
         [{ value: 'Report Date' }],
@@ -809,9 +809,11 @@ Router.get('/excel', async (req, res) => {
 
                 if (snipeData && snipeData[date] && snipeData[date][id] && snipeData[date][id][jc]) {
                     snipe_count = snipeData[date][id][jc].length;
-                    unique = [...assets.filter(e => snipeData[date][id][jc].indexOf(e) === -1), ...snipeData[date][id][jc].filter(e => assets.indexOf(e) === -1)]
+                    let s = snipeData[date][id][jc].map(m => m.toUpperCase().trim())
+                    let a = assets.map(m => m.toUpperCase().trim())
+                    unique = [...a.filter(e => s.indexOf(e) === -1), ...s.filter(e => a.indexOf(e) === -1)]
                 } else {
-                    unique = assets.join(', ')
+                    unique = assets.join(',')
                 }
 
                 revenue = parseFloat(job_codes[jc].price) * parseFloat(count)
@@ -826,7 +828,7 @@ Router.get('/excel', async (req, res) => {
                 if (hrly_revenue == Infinity) hrly_revenue = 0
 
                 // discrepancy check
-                if (ts_count !== count || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
+                if (job_codes[jc].requires_asset) if (ts_count !== count || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
 
                 d.push([
                     { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
@@ -892,7 +894,7 @@ Router.get('/excel', async (req, res) => {
                 hrly_revenue = job_price
 
                 //discrepancy check
-                if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date })
+                if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date, snipe_count: '-' })
 
                 d.push([
                     { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
