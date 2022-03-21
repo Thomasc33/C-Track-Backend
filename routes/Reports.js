@@ -671,7 +671,7 @@ Router.get('/excel', async (req, res) => {
     } else { start = range, end = date } // Report with range
 
     // Start the snipe 
-    const snipeData = getSnipeData(start)
+    const snipeData = await getSnipeData(start)
 
     // Get Asset and Houly Data
     let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
@@ -808,14 +808,9 @@ Router.get('/excel', async (req, res) => {
                 count = assets.length
 
                 if (snipeData && snipeData[date] && snipeData[date][id] && snipeData[date][id][jc]) {
-                    console.log('in')
-                    console.log(snipeData[date][id][jc])
                     snipe_count = snipeData[date][id][jc].length;
                     unique = [...assets.filter(e => snipeData[date][id][jc].indexOf(e) === -1), ...snipeData[date][id][jc].filter(e => assets.indexOf(e) === -1)]
                 } else {
-                    console.log('not in')
-                    console.log(snipeData)
-                    console.log(date, id, jc)
                     unique = assets.join(', ')
                 }
 
@@ -924,8 +919,8 @@ Router.get('/excel', async (req, res) => {
         if (range) for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id]) fiveDayHours += j.hours
 
         // Five day revenue counter
-        five_day_asset_query.forEach(row => { fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
-        five_day_hourly_query.forEach(row => { fiveDayRevenue += parseFloat(job_codes[row.job_code].price) * parseFloat(row.hours) })
+        five_day_asset_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
+        five_day_hourly_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) * parseFloat(row.hours) })
 
         // Totals section
         let temp_rows = [[
@@ -1029,7 +1024,6 @@ Router.get('/excel', async (req, res) => {
         return d
     }
 
-    await snipeData
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
     applicableUsers.forEach(u => { if (discrepancies[u]) data.push(...getDiscrepancy(u), [], []) })
 
