@@ -77,7 +77,7 @@ app.use(async (req, res, next) => {
         '/catalog'
     ]
     if (ignoreLogURLS.includes(req.url)) return
-    console.log(req.url, 'going')
+    
     // Get UID
     const uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
