@@ -101,7 +101,7 @@ app.use(async (req, res, next) => {
 
     // Return if required data points are missing
     if (!uid || !time) return
-    console.log(uid)
+    
     // Send to DB
     pool.request().query(`INSERT INTO history ([user], time, ip_address, route, body) VALUES ('${uid}','${time}','${ip}','${route}','${bodyString}')`)
         .catch(er => { console.log('error when inserting into log: ', er) })

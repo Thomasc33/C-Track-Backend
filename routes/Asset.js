@@ -188,7 +188,7 @@ Router.post('/user/edit', async (req, res) => {
 
         asset_id = asset_tracker_to_id_query.recordset[0].asset_id
 
-        let asset_query = await pool.request().query(`SELECT id, locked FROM assets WHERE id = '${asset_tracker_to_id_query.recordset[0].asset_id}'`)
+        let asset_query = await pool.request().query(`SELECT id, locked, model_number FROM assets WHERE id = '${asset_tracker_to_id_query.recordset[0].asset_id}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (asset_query.isErrored) return res.status(500).json(asset_query.er)
         if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_tracker_to_id_query.recordset[0].asset_id}'` })
@@ -196,8 +196,9 @@ Router.post('/user/edit', async (req, res) => {
 
         let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
             .catch(er => { return { isErrored: true, er: er } })
+
         if (model_query.isErrored) return res.status(500).json(model_query.er)
-        if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${id}'` })
+        if (!model_query.recordset || !model_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${id}'` })
         if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
     }
     else if (change == 'asset') {
