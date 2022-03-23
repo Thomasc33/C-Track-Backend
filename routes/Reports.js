@@ -603,7 +603,7 @@ Router.get('/jobusage/:type', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get job codes
-    let jq = await pool.request().query(`SELECT id, job_code,is_hourly FROM jobs`)
+    let jq = await pool.request().query(`SELECT id, job_code,is_hourly,price FROM jobs`)
         .then(d => d.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (jq && jq.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
@@ -637,26 +637,30 @@ Router.get('/jobusage/:type', async (req, res) => {
         hrly_data[job][date] = hq_q[0][i]
     }
 
-    jq.sort((a, b) => { // this doesnt work rn
+    jq.sort((a, b) => {
         let a_count = 0, b_count = 0
         if (a.is_hourly) a_count = Object.values(hrly_data[a.job_code]).reduce((a, b) => a + b)
         else a_count = Object.values(ppd_data[a.job_code]).reduce((a, b) => a + b)
         if (b.is_hourly) b_count = Object.values(hrly_data[b.job_code]).reduce((a, b) => a + b)
         else b_count = Object.values(ppd_data[b.job_code]).reduce((a, b) => a + b)
-        return a > b ? -1 : a == b ? 0 : 1
+        return a_count > b_count ? -1 : a_count == b_count ? 0 : 1
     })
-    let data = [['Date'], ...jq.map(m => [m.job_code])]
+    let data = [[{ value: 'Date' }], ...jq.map(m => [{ value: m.job_code }])]
 
     for (let i of [...months].reverse()) {
-        data[0].push(`${i.month}-${i.year}`)
+        data[0].push({ value: `${i.month}-${i.year}`, align: 'center' }, {})
         for (let j in jq) {
             let m = jq[j]
-            if (m.is_hourly) data[parseInt(j) + 1].push(hrly_data[m.job_code][`${i.month}-${i.year}`])
-            else data[parseInt(j) + 1].push(ppd_data[m.job_code][`${i.month}-${i.year}`])
+            if (m.is_hourly) data[parseInt(j) + 1].push({ value: hrly_data[m.job_code][`${i.month}-${i.year}`], align: 'left' },
+                { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
+            else data[parseInt(j) + 1].push({ value: ppd_data[m.job_code][`${i.month}-${i.year}`], align: 'left' },
+                { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
         }
     }
 
-    res.status(200).json({ data })
+    const columns = [{ width: 40 }]
+
+    res.status(200).json({ data, columns })
 })
 
 Router.get('/excel', async (req, res) => {
