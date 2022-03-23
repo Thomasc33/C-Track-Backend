@@ -557,13 +557,72 @@ Router.post('/assetsummary', async (req, res) => {
     if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
     for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price }
 
-    let data = [['user', 'asset id', 'status', 'date', 'time', 'notes']]
+    let data = [[{ value: 'User' }, { value: 'Asset Id' }, { value: 'Status' }, { value: 'Date' }, { value: 'Time' }, { value: 'Notes' }]]
 
     for (let i of asset_tracking_query) {
-        data.push([usernames[i.user_id], i.asset_id, job_codes[i.job_code].name, i.date.toISOString().split('T')[0], i.time.toISOString().substring(11, 18), i.notes || ''])
+        data.push([
+            { value: usernames[i.user_id] },
+            { value: i.asset_id, type: String },
+            { value: job_codes[i.job_code].name },
+            { value: i.date.toISOString().split('T')[0] },
+            { value: i.time.toISOString().substring(11, 19) },
+            { value: i.notes || '' }
+        ])
     }
 
-    res.status(200).json({ data })
+    const columns = [{ width: 20 }, { width: 20 }, { width: 30 }, { width: 10 }, { width: 10 }, { width: 70 }]
+
+    res.status(200).json({ data, columns })
+})
+
+Router.post('/hourlysummary', async (req, res) => {
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
+
+    const { date, range } = req.body
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    let hourly_tracking_query = await pool.request().query(`SELECT * FROM hourly_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+        .then(d => d.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (hourly_tracking_query && hourly_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
+
+    // Get user name object
+    let usernames = {}
+    let user_query = await pool.request().query(`SELECT id,name FROM users`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (user_query.isErrored) return res.status(500).json({ message: 'Error fetching users' })
+    for (let i of user_query.recordset) usernames[i.id] = i.name
+
+
+    // Get Job Code Names
+    let job_codes = {}
+    let job_code_query = await pool.request().query(`SELECT id,job_code,price FROM jobs WHERE is_hourly = 1`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price }
+
+    let data = [[{ value: 'User' }, { value: 'Job' }, { value: 'Date' }, { value: 'Start' }, { value: 'End' }, { value: 'Hours' }, { value: 'Notes' }]]
+
+    for (let i of hourly_tracking_query) {
+        data.push([
+            { value: usernames[i.user_id] },
+            { value: job_codes[i.job_code].name },
+            { value: i.date.toISOString().split('T')[0] },
+            { value: i.start_time.toISOString().substring(11, 19) },
+            { value: i.end_time.toISOString().substring(11, 19) },
+            { value: i.hours },
+            { value: i.notes || '' }
+        ])
+    }
+
+    const columns = [{ width: 20 }, { width: 20 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 10 }, { width: 70 }]
+
+    res.status(200).json({ data, columns })
 })
 
 Router.get('/jobusage/:type', async (req, res) => {
