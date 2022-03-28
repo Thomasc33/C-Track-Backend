@@ -878,7 +878,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
                 goal = job_codes[jc].hourly_goal || '-'
-                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += parseInt(i.count) }
+                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += parseInt(i.count); i.visited = true }
 
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
@@ -959,8 +959,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
 
-                if (tsheets_data[date])
-                    for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count; i.visited = true }
 
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
@@ -987,7 +986,6 @@ Router.get('/excel', async (req, res) => {
                                 i[7].backgroundColor = hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
                             }
 
-                            ind++
                             return
                         }
                     }
@@ -1138,6 +1136,8 @@ Router.get('/excel', async (req, res) => {
 
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
     applicableUsers.forEach(u => { if (discrepancies[u]) data.push(...getDiscrepancy(u), [], []) })
+
+    console.log(tsheets_data)
 
 
     // Update global totals
