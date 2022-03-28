@@ -901,9 +901,9 @@ Router.get('/excel', async (req, res) => {
                 totalhours += ts_hours
 
                 if (goal == '-') hrly_count = '-'
-                else hrly_count = (count / (ts_hours || count)).toFixed(3)
+                else hrly_count = round(count / (ts_hours || count), 3)
 
-                hrly_revenue = (revenue / ts_hours).toFixed(3)
+                hrly_revenue = round(revenue / ts_hours,3)
                 if (revenue == 0) hrly_revenue = '-'
                 if (hrly_revenue == Infinity) hrly_revenue = 0
 
@@ -1047,9 +1047,9 @@ Router.get('/excel', async (req, res) => {
             { value: fiveDayHours, rightBorderStyle: 'thin' },
         ], [
             { value: 'Hourly Revenue', },
-            { value: totalhours ? (totalrevenue / totalhours).toFixed(3) : 0, rightBorderStyle: 'thin' },
+            { value: totalhours ? round(totalrevenue / totalhours,3) : 0, rightBorderStyle: 'thin' },
             { value: '5-Day Hourly Revenue' },
-            { value: fiveDayHours ? (fiveDayRevenue / fiveDayHours).toFixed(3) : 0, rightBorderStyle: 'thin' },
+            { value: fiveDayHours ? round(fiveDayRevenue / fiveDayHours,3) : 0, rightBorderStyle: 'thin' },
         ]]
         if (range && date) { temp_rows[0][2] = {}; temp_rows[0][3] = {}; temp_rows[1][2] = {}; temp_rows[1][3] = {}; temp_rows[2][2] = {}; temp_rows[2][3] = {} }
         d.push([], [], ...temp_rows)
@@ -1144,7 +1144,7 @@ Router.get('/excel', async (req, res) => {
     // Update global totals
     data[3][1].value = total_revenue
     data[4][1].value = total_hours
-    data[5][1].value = total_hours == 0 ? 0 : (total_revenue / total_hours).toFixed(3)
+    data[5][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours,3)
 
     // Set column widths
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
@@ -1282,6 +1282,8 @@ function getSnipeData(start) {
         res(data)
     })
 }
+
+const round = (x, n) => Number(parseFloat(Math.round(x * Math.pow(10, n)) / Math.pow(10, n)).toFixed(n));
 
 /** Code to get all the job codes from snipe and match them to the db
         let d = await axios.get(`${snipeAPILink}/statuslabels`, { headers: { Authorization: SnipeBearer } }).then(d => d.data)
