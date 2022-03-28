@@ -13,7 +13,8 @@
     "tsheets": {
         "clientId": "",
         "redirectURI": "",
-        "clientSecret": ""
+        "clientSecret": "",
+        "token": ""
     },
     "port": 80,
     "tenantId": "",

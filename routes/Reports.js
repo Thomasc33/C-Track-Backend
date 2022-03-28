@@ -775,8 +775,6 @@ Router.get('/excel', async (req, res) => {
     if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
     let applicableUserString = [...applicableUsers].filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined).join(',')
-    console.log(applicableUserString)
-
 
     // Get Job Code Names
     let job_codes = {}
@@ -787,7 +785,6 @@ Router.get('/excel', async (req, res) => {
 
     // Get Tsheets Data
     const tsheets_data = await getTsheetsData(applicableUserString, job_codes, start, end)
-    console.log(JSON.stringify(tsheets_data, null, 4))
 
     const data = [
         [{ value: 'Report Date' }],
@@ -878,7 +875,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
                 goal = job_codes[jc].hourly_goal || '-'
-                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += parseInt(i.count) }
 
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
@@ -1005,7 +1002,7 @@ Router.get('/excel', async (req, res) => {
         let fiveDayHours = 0.0
 
         // Five day hours counter, assumed tsheets_data was grabbed with start date-6days
-        if (range) for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id].timesheets) fiveDayHours += j.hours
+        for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id].timesheets) fiveDayHours += j.hours
 
         // Five day revenue counter
         five_day_asset_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
@@ -1082,7 +1079,7 @@ Router.get('/excel', async (req, res) => {
                 { value: job_codes[i.jc] ? job_codes[i.jc].name : `Job ID: ${i.jc}` },
                 { value: i.date },
                 { value: i.count },
-                { value: i.ts_count || i.ts_hours },
+                { value: i.ts_count || i.ts_hours || '0' },
                 { value: i.snipe_count || '0' },
                 { value: i.unique || '-', wrap: true }
             ])
@@ -1154,7 +1151,6 @@ function getDate(date) {
  */
 async function getTsheetsData(applicableUserString, job_codes, start, end) {
     const tsheets_data = {}
-    const reversedJobCodes = Object.fromEntries(Object.entries(job_codes).map(a => a.reverse()))
     let job_code_cache = {} //tsid:db id
     let loop = true, failed = false
     let page = 1
@@ -1163,6 +1159,7 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
             params: {
                 user_ids: applicableUserString,
                 start_date: start,
+                jobcode_ids: 61206982, // CURO's customer id
                 end_date: end || undefined,
                 page: page
             }, headers: {
@@ -1179,15 +1176,14 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
 
         for (let ind in sheets) { //this might have to be 'for in'
             let i = sheets[ind]
-            if (i.jobcode_id !== '61206982') continue
             let d = i.date
             let uid = TSheetsUIDtoUID[`${i.user_id}`] // check data type, the key is string, key[id] is Number
             i.localUid = uid
             if (!tsheets_data[d]) tsheets_data[d] = {}
             if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
-            if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid:${uid}'s entry with id of ${i.id}`) }
+            if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid: ${uid}'s entry with id of ${i.id}`) }
             let jc_name = i.customfields['1164048'].split(':').splice(1).join(':').replace(/[:-\s]/gi, '').toLowerCase()
-            if (!jc_name) { console.log(`Missing jc_name from uid:${uid}'s entry with id of ${i.id}`); continue }
+            if (!jc_name) { console.log(`Missing jc_name from uid: ${uid}'s entry with id of ${i.id}`); continue }
             if (job_code_cache[`${jc_name}`]) i.jobCode = job_code_cache[`${jc_name}`]
             else {
                 let f = false
@@ -1208,7 +1204,7 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
         }
     } while (loop)
 
-    if (Object.keys(tsheets_data).length == 0) tsheets_data = null
+    if (Object.keys(tsheets_data).length == 0) return null
     return tsheets_data
 }
 
