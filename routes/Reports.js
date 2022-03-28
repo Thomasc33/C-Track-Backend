@@ -804,6 +804,7 @@ Router.get('/excel', async (req, res) => {
     let total_revenue = 0
     let discrepancies = {}
     for (let i of applicableUsers) discrepancies[i] = []
+    let tsheetsVisited = new Set()
 
     function getUserData(id) {
         let d = []
@@ -842,8 +843,6 @@ Router.get('/excel', async (req, res) => {
         let hourlyJobCodes = new Set()
         if (asset_tracking_query) for (let i of asset_tracking_query) if (i.user_id == id) assetJobCodes.add(i.job_code)
         if (hourly_tracking_query) for (let i of hourly_tracking_query) if (i.user_id == id) hourlyJobCodes.add(i.job_code)
-
-        let tsheetsVisited = new Set()
 
         let totalrevenue = 0.0
         let totalhours = 0.0
@@ -903,7 +902,7 @@ Router.get('/excel', async (req, res) => {
                 if (goal == '-') hrly_count = '-'
                 else hrly_count = round(count / (ts_hours || count), 3)
 
-                hrly_revenue = round(revenue / ts_hours,3)
+                hrly_revenue = round(revenue / ts_hours, 3)
                 if (revenue == 0) hrly_revenue = '-'
                 if (hrly_revenue == Infinity) hrly_revenue = 0
 
@@ -1047,9 +1046,9 @@ Router.get('/excel', async (req, res) => {
             { value: fiveDayHours, rightBorderStyle: 'thin' },
         ], [
             { value: 'Hourly Revenue', },
-            { value: totalhours ? round(totalrevenue / totalhours,3) : 0, rightBorderStyle: 'thin' },
+            { value: totalhours ? round(totalrevenue / totalhours, 3) : 0, rightBorderStyle: 'thin' },
             { value: '5-Day Hourly Revenue' },
-            { value: fiveDayHours ? round(fiveDayRevenue / fiveDayHours,3) : 0, rightBorderStyle: 'thin' },
+            { value: fiveDayHours ? round(fiveDayRevenue / fiveDayHours, 3) : 0, rightBorderStyle: 'thin' },
         ]]
         if (range && date) { temp_rows[0][2] = {}; temp_rows[0][3] = {}; temp_rows[1][2] = {}; temp_rows[1][3] = {}; temp_rows[2][2] = {}; temp_rows[2][3] = {} }
         d.push([], [], ...temp_rows)
@@ -1078,7 +1077,6 @@ Router.get('/excel', async (req, res) => {
                 if (cols - 1 == j) d[i][j].rightBorderStyle = 'thick'
             }
         }
-        console.log(tsheetsVisited)
         return d
     }
 
@@ -1137,14 +1135,25 @@ Router.get('/excel', async (req, res) => {
         return d
     }
 
+    // In T-Sheets but not C-Track
+    if (tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid]) {
+        if (!tsheetsVisited.has(sheet.id)) {
+            if (!discrepancies[u]) discrepancies[u] = {}
+            discrepancies[u].push({ jc: sheet.customfields ? sheet.customfields['1164048'] || sheet.notes : sheet.notes, ts_count: sheet.count, count: 0, date: d })
+        }
+    }
+
+
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
     applicableUsers.forEach(u => { if (discrepancies[u]) data.push(...getDiscrepancy(u), [], []) })
+
+    console.log(discrepancies)
 
 
     // Update global totals
     data[3][1].value = total_revenue
     data[4][1].value = total_hours
-    data[5][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours,3)
+    data[5][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours, 3)
 
     // Set column widths
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
