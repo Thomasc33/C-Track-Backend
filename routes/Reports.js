@@ -297,7 +297,7 @@ Router.post('/generate', async (req, res) => {
     let applicableUsers = new Set()
     if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
-    let applicableUserString = [...applicableUsers].map(m => UIDtoTSheetsUID[m] || undefined).join(',')
+    // let applicableUserString = [...applicableUsers].map(m => UIDtoTSheetsUID[m] || undefined).join(',')
 
 
     // Get Job Code Names
@@ -318,7 +318,7 @@ Router.post('/generate', async (req, res) => {
      * }
      */
 
-    const tsheets_data = await getTsheetsData(applicableUserString, job_codes, range, date)
+    const tsheets_data = await getTsheetsData(job_codes, range, date) //applicableUserString
 
 
     // The fun stuff :)
@@ -777,7 +777,7 @@ Router.get('/excel', async (req, res) => {
     let applicableUsers = new Set()
     if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
-    let applicableUserString = [...applicableUsers].filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined).join(',')
+    // let applicableUserString = [...applicableUsers].filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined).join(',')
 
     // Get Job Code Names
     let job_codes = {}
@@ -787,7 +787,7 @@ Router.get('/excel', async (req, res) => {
     for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price, hourly_goal: i.hourly_goal, requires_asset: i.requires_asset }
 
     // Get Tsheets Data
-    const tsheets_data = await getTsheetsData(applicableUserString, job_codes, start, end)
+    const tsheets_data = await getTsheetsData(job_codes, start, end) //applicableUserString
 
     const data = [
         [{ value: 'Report Date' }],
@@ -1180,12 +1180,11 @@ function getDate(date) {
  */
 /**
  * 
- * @param {String} applicableUserString 
  * @param {Date} start The start date
  * @param {Date} end The end date
  * @returns {Object} tsheets_data
  */
-async function getTsheetsData(applicableUserString, job_codes, start, end) {
+async function getTsheetsData(job_codes, start, end) {
     const tsheets_data = {}
     let job_code_cache = {} //tsid:db id
     let loop = true, failed = false
@@ -1193,7 +1192,7 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
     do {
         let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
             params: {
-                user_ids: applicableUserString,
+                //user_ids: applicableUserString,
                 start_date: start,
                 jobcode_ids: 61206982, // CURO's customer id
                 end_date: end || undefined,
