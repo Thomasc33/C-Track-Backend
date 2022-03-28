@@ -1183,14 +1183,14 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
             let uid = TSheetsUIDtoUID[`${i.user_id}`] // check data type, the key is string, key[id] is Number
             if (!tsheets_data[d]) tsheets_data[d] = {}
             if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
-            if (job_code_cache[i.jobcode_id]) i.jobCode = job_code_cache[i.jobcode_id]
+            if (job_code_cache[`${i.jobcode_id}`]) i.jobCode = job_code_cache[`${i.jobcode_id}`]
             else {
                 let f = false
                 for (let j in job_codes) {
                     if (job_codes[j].name.replace(/[:-\s]/gi, '').toLowerCase() == i.customfields['1164048'].replace(/[:-\s]/gi, '').toLowerCase()) {
                         f = true
                         i.jobCode = j
-                        job_code_cache[i.jobcode_id] = j
+                        job_code_cache[`${i.jobcode_id}`] = j
                         break;
                     }
                 }
