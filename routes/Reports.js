@@ -650,7 +650,7 @@ Router.get('/jobusage/:type', async (req, res) => {
         for (let n in [...Array(12).keys()]) {
             n = parseInt(n) + 1
             if (n > month) break
-            months.unsihft({ month: n, year })
+            months.push({ month: n, year })
         }
     } else {
         let now = new Date()
@@ -658,7 +658,7 @@ Router.get('/jobusage/:type', async (req, res) => {
         let month = now.getMonth() + 1
         while (year >= 2022) {
             while (month) {
-                months.unshift({ month, year })
+                months.push({ month, year })
                 month--
             }
             year--
@@ -714,26 +714,33 @@ Router.get('/jobusage/:type', async (req, res) => {
     let data = [[{ value: 'Date' }], [{ value: 'PPD Total' }], [{ value: 'Hourly Total' }], [{ value: 'Total Revenue' }], ...jq.map(m => [{ value: m.job_code }])]
 
     for (let i of [...months].reverse()) {
-        data[0].push({ value: `${monthNames[i.month - 1]}-${i.year}`, align: 'center' }, {})
-        data[1].push({ value: 0 }, { value: 0 })
-        data[2].push({ value: 0 }, { value: 0 })
-        data[3].push({}, { value: 0 })
+        data[0].push({ value: `${monthNames[i.month - 1]}-${i.year}`, align: 'center', leftBorderStyle: 'thin' }, { rightBorderStyle: 'thin' })
+        data[1].push({ value: 0, align: 'left', leftBorderStyle: 'thin' }, { value: 0, rightBorderStyle: 'thin' })
+        data[2].push({ value: 0, align: 'left', leftBorderStyle: 'thin' }, { value: 0, rightBorderStyle: 'thin' })
+        data[3].push({ value: '-', leftBorderStyle: 'thin' }, { value: 0, rightBorderStyle: 'thin' })
         for (let j in jq) {
             let m = jq[j]
             if (m.is_hourly) {
-                data[parseInt(j) + 1].push({ value: hrly_data[m.job_code][`${i.month}-${i.year}`], align: 'left' }, { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
-                data[1][1].value += hrly_data[m.job_code][`${i.month}-${i.year}`]
-                data[1][2].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
-                data[3][2].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[parseInt(j) + 4].push({ value: hrly_data[m.job_code][`${i.month}-${i.year}`], align: 'left', leftBorderStyle: 'thin' },
+                    { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left', rightBorderStyle: 'thin' })
+                data[1][data[1].length - 2].value += hrly_data[m.job_code][`${i.month}-${i.year}`]
+                data[1][data[1].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[3][data[3].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
             }
             else {
-                data[parseInt(j) + 1].push({ value: ppd_data[m.job_code][`${i.month}-${i.year}`], align: 'left' }, { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
-                data[2][1].value += ppd_data[m.job_code][`${i.month}-${i.year}`]
-                data[2][2].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
-                data[3][2].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[parseInt(j) + 4].push({ value: ppd_data[m.job_code][`${i.month}-${i.year}`], align: 'left', leftBorderStyle: 'thin' },
+                    { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left', rightBorderStyle: 'thin' })
+                data[2][data[2].length - 2].value += ppd_data[m.job_code][`${i.month}-${i.year}`]
+                data[2][data[2].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[3][data[3].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
             }
         }
     }
+
+    // Convert money into money string
+    for (let ind in data[1]) if (ind % 2 == 0 && data[1][ind].value) data[1][ind].value = data[1][ind].value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    for (let ind in data[2]) if (ind % 2 == 0 && data[2][ind].value) data[2][ind].value = data[2][ind].value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
+    for (let ind in data[3]) if (ind % 2 == 0 && data[3][ind].value) data[3][ind].value = data[3][ind].value.toLocaleString('en-US', { style: 'currency', currency: 'USD' })
 
     const columns = [{ width: 40 }]
 
@@ -997,6 +1004,15 @@ Router.get('/excel', async (req, res) => {
                             if (i[7].value == '-' || i[7].value < hrly_revenue) {
                                 i[7].value = hrly_revenue;
                                 i[7].backgroundColor = hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                            }
+
+                            //Check to see if it was marked as discrepancy before
+                            if (discrepancies[id]) for (let ind in discrepancies[id]) {
+                                let i = discrepancies[id][ind]
+                                if (i.jc == complimentaryJC) {
+                                    discrepancies[id][ind].ts_count = ts_count
+                                    if (i.count == i.snipe_count && i.count == ts_count) discrepancies[id].splice(ind, 1)
+                                }
                             }
 
                             return
