@@ -1181,16 +1181,20 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
             let i = sheets[ind]
             let d = i.date
             let uid = TSheetsUIDtoUID[`${i.user_id}`] // check data type, the key is string, key[id] is Number
+            i.localUid = uid
             if (!tsheets_data[d]) tsheets_data[d] = {}
             if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
-            if (job_code_cache[`${i.jobcode_id}`]) i.jobCode = job_code_cache[`${i.jobcode_id}`]
+            if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid:${uid}'s entry with id of ${i.id}`) }
+            let jc_name = i.customfields['1164048'].replace(/[:-\s]/gi, '').toLowerCase()
+            if (!jc_name) { console.log(`Missing jc_name from uid:${uid}'s entry with id of ${i.id}`); continue }
+            if (job_code_cache[`${jc_name}`]) i.jobCode = job_code_cache[`${jc_name}`]
             else {
                 let f = false
                 for (let j in job_codes) {
-                    if (job_codes[j].name.replace(/[:-\s]/gi, '').toLowerCase() == i.customfields['1164048'].replace(/[:-\s]/gi, '').toLowerCase()) {
+                    if (job_codes[j].name.replace(/[:-\s]/gi, '').toLowerCase() == jc_name) {
                         f = true
                         i.jobCode = j
-                        job_code_cache[`${i.jobcode_id}`] = j
+                        job_code_cache[`${jc_name}`] = j
                         break;
                     }
                 }
