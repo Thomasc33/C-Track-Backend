@@ -1179,13 +1179,14 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
 
         for (let ind in sheets) { //this might have to be 'for in'
             let i = sheets[ind]
+            if (i.jobcode_id !== '61206982') continue
             let d = i.date
             let uid = TSheetsUIDtoUID[`${i.user_id}`] // check data type, the key is string, key[id] is Number
             i.localUid = uid
             if (!tsheets_data[d]) tsheets_data[d] = {}
             if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
             if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid:${uid}'s entry with id of ${i.id}`) }
-            let jc_name = i.customfields['1164048'].replace(/[:-\s]/gi, '').toLowerCase()
+            let jc_name = i.customfields['1164048'].split(':').splice(1).join(':').replace(/[:-\s]/gi, '').toLowerCase()
             if (!jc_name) { console.log(`Missing jc_name from uid:${uid}'s entry with id of ${i.id}`); continue }
             if (job_code_cache[`${jc_name}`]) i.jobCode = job_code_cache[`${jc_name}`]
             else {
