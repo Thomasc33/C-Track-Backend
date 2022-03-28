@@ -896,9 +896,14 @@ Router.get('/excel', async (req, res) => {
                 //job price, hours spent, count, goal, count/hour, revenue, revenue/hour
                 let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = []
 
+                // Complimentary job code
+
+                let complimentaryJC
+                if (JobCodePairsSet.has(jc)) for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
+
                 job_price = job_codes[jc].price
                 goal = job_codes[jc].hourly_goal || '-'
-                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || i.jobCode == complimentaryJC) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
 
 
                 let assets = []
@@ -1014,7 +1019,6 @@ Router.get('/excel', async (req, res) => {
                                     if (i.count == i.snipe_count && i.count == ts_count) discrepancies[id].splice(ind, 1)
                                 }
                             }
-
                             return
                         }
                     }
