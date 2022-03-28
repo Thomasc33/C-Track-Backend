@@ -463,15 +463,15 @@ Router.get('/jobusage/:type', async (req, res) => {
             if (m.is_hourly) {
                 data[parseInt(j) + 4].push({ value: hrly_data[m.job_code][`${i.month}-${i.year}`], align: 'left', leftBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
                     { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left', rightBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
-                data[1][data[1].length - 2].value += hrly_data[m.job_code][`${i.month}-${i.year}`]
-                data[1][data[1].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[2][data[1].length - 2].value += hrly_data[m.job_code][`${i.month}-${i.year}`]
+                data[2][data[1].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
                 data[3][data[3].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
             }
             else {
                 data[parseInt(j) + 4].push({ value: ppd_data[m.job_code][`${i.month}-${i.year}`], align: 'left', leftBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
                     { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left', rightBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
-                data[2][data[2].length - 2].value += ppd_data[m.job_code][`${i.month}-${i.year}`]
-                data[2][data[2].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[1][data[2].length - 2].value += ppd_data[m.job_code][`${i.month}-${i.year}`]
+                data[1][data[2].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
                 data[3][data[3].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
             }
             ind++
