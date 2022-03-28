@@ -390,7 +390,7 @@ Router.post('/generate', async (req, res) => {
                     for (let d of dates) {
                         let h = 0, c = 0
                         d = d.toISOString().split('T')[0]
-                        for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                        for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += parseInt(i.count) }
                         for (let i of asset_tracking_query) {
                             try {
                                 if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) c++
@@ -875,7 +875,7 @@ Router.get('/excel', async (req, res) => {
                 for (let d of dates) {
                     let h = 0, c = 0
                     d = d.toISOString().split('T')[0]
-                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += parseInt(i.count) }
                     for (let i of asset_tracking_query) {
                         try {
                             if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) c++
@@ -938,14 +938,14 @@ Router.get('/excel', async (req, res) => {
                         value: hrly_count, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null,
                         backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor :
                             hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor :
-                                ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                                reportTunables.goalColor
                     },
                     { value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
                     {
                         value: hrly_revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null,
                         backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor :
                             hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
-                                ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                                reportTunables.goalColor
                     }])
 
                 ind++
@@ -960,7 +960,7 @@ Router.get('/excel', async (req, res) => {
                 for (let d of dates) {
                     let h = 0, c = 0
                     d = d.toISOString().split('T')[0]
-                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += parseInt(i.count) }
                     for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) count += i.hours
                     let r = parseFloat(job_codes[jc].price) * parseFloat(c)
                     row.push({ value: c }, { value: r }, { value: h })
@@ -1003,7 +1003,7 @@ Router.get('/excel', async (req, res) => {
                             if (i[6].value < revenue) i[6].value = revenue
                             if (i[7].value == '-' || i[7].value < hrly_revenue) {
                                 i[7].value = hrly_revenue;
-                                i[7].backgroundColor = hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                                i[7].backgroundColor = hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
                             }
 
                             //Check to see if it was marked as discrepancy before
@@ -1034,7 +1034,7 @@ Router.get('/excel', async (req, res) => {
                         value: hrly_revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null,
                         backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor :
                             hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
-                                ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                                reportTunables.goalColor
                     }])
 
                 ind++
@@ -1045,7 +1045,7 @@ Router.get('/excel', async (req, res) => {
             for (let i in snipeData[date][id]) {
                 if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
                     let ts_count, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
-                    if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += i.count }
+                    if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += parseInt(i.count) }
                     discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
                 }
             }
@@ -1179,7 +1179,7 @@ Router.get('/excel', async (req, res) => {
     data[3][1].value = total_revenue
     data[4][1].value = total_hours
     data[5][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours, 3)
-    data[5][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : undefined
+    data[5][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
 
     // Set column widths
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]

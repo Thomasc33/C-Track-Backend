@@ -4,6 +4,7 @@
     "overPercent": 1.333,
     "underColor": "#f56c42",
     "overColor": "#f5d142",
+    "goalColor": "#2dba6a",
     "headerColor": "#4472c4",
     "rowAlternatingColor": "#d9e1f2"
 }
