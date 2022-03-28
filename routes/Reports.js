@@ -843,6 +843,8 @@ Router.get('/excel', async (req, res) => {
         if (asset_tracking_query) for (let i of asset_tracking_query) if (i.user_id == id) assetJobCodes.add(i.job_code)
         if (hourly_tracking_query) for (let i of hourly_tracking_query) if (i.user_id == id) hourlyJobCodes.add(i.job_code)
 
+        let tsheetsVisited = new Set()
+
         let totalrevenue = 0.0
         let totalhours = 0.0
 
@@ -878,7 +880,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
                 goal = job_codes[jc].hourly_goal || '-'
-                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += parseInt(i.count); i.visited = true }
+                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
 
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
@@ -959,7 +961,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
 
-                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count; i.visited = true }
+                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count; tsheetsVisited.add(i.id) }
 
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
@@ -972,14 +974,13 @@ Router.get('/excel', async (req, res) => {
                 if (JobCodePairsSet.has(jc)) {
                     let complimentaryJC
                     for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
-                    console.log(job_codes, complimentaryJC, jc)
                     if (complimentaryJC) for (let i of d) {
                         if (i.length < 6) continue
                         if (job_codes[`${complimentaryJC}`]) if (i[0].value == job_codes[jc].name && i[0].value == job_codes[`${complimentaryJC}`].name) {
-                            if (i[1].value < job_price) i[1].value = job_price
+                            if (parseFloat(i[1].value) < parseFloat(job_price)) i[1].value = job_price
                             if (ts_hours) i[2].value = ts_hours
                             else ts_hours = i[2].value
-                            if (ts_hours !== count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
+                            if (ts_hours != count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
                             if (i[6].value < revenue) i[6].value = revenue
                             if (i[7].value == '-' || i[7].value < hrly_revenue) {
                                 i[7].value = hrly_revenue;
@@ -1131,13 +1132,12 @@ Router.get('/excel', async (req, res) => {
                 if (cols - 1 == j) d[i][j].rightBorderStyle = 'thick'
             }
         }
+        console.log(tsheetsVisited)
         return d
     }
 
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
     applicableUsers.forEach(u => { if (discrepancies[u]) data.push(...getDiscrepancy(u), [], []) })
-
-    console.log(tsheets_data)
 
 
     // Update global totals
