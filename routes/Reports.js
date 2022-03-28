@@ -1187,7 +1187,7 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
             else {
                 let f = false
                 for (let j in job_codes) {
-                    if (job_codes[j].name.replace(/[:-]/gi, ' ').toLowerCase() == i.customfields['1164048'].replace(/[:-]/gi, ' ').toLowerCase()) {
+                    if (job_codes[j].name.replace(/[:-\s]/gi, '').toLowerCase() == i.customfields['1164048'].replace(/[:-\s]/gi, '').toLowerCase()) {
                         f = true
                         i.jobCode = j
                         job_code_cache[i.jobcode_id] = j
@@ -1197,9 +1197,8 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
                 if (!f) i.jobCode = null
             }
             i.count = i.notes ? i.notes.replace(/[:-]/g, ' ').split(' ')[0] : 0
-            if (isNaN(i)) i = 0
+            if (isNaN(i.count)) i.count = 0
             i.hours = i.duration / 3600
-            console.log(tsheets_data, i.date, TSheetsUIDtoUID[i.user_id])
             tsheets_data[d][uid].timesheets.push(i)
         }
     } while (loop)
