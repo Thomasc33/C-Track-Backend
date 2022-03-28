@@ -17,6 +17,7 @@ const TSheetsUIDtoUID = Object.fromEntries(Object.entries(UIDtoTSheetsUID).map(a
 const JobCodePairs = require('../jobCodePairs.json')
 const JobCodePairsSet = new Set()
 JobCodePairs.forEach(a => a.forEach(ele => JobCodePairsSet.add(ele)))
+const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
 Router.get('/users/daily/:date', async (req, res) => {
     // Check token using toUid function
@@ -649,7 +650,7 @@ Router.get('/jobusage/:type', async (req, res) => {
         for (let n in [...Array(12).keys()]) {
             n = parseInt(n) + 1
             if (n > month) break
-            months.push({ month: n, year })
+            months.unsihft({ month: n, year })
         }
     } else {
         let now = new Date()
@@ -657,7 +658,7 @@ Router.get('/jobusage/:type', async (req, res) => {
         let month = now.getMonth() + 1
         while (year >= 2022) {
             while (month) {
-                months.push({ month, year })
+                months.unshift({ month, year })
                 month--
             }
             year--
@@ -710,16 +711,27 @@ Router.get('/jobusage/:type', async (req, res) => {
         else b_count = Object.values(ppd_data[b.job_code]).reduce((a, b) => a + b)
         return a_count > b_count ? -1 : a_count == b_count ? 0 : 1
     })
-    let data = [[{ value: 'Date' }], ...jq.map(m => [{ value: m.job_code }])]
+    let data = [[{ value: 'Date' }], [{ value: 'PPD Total' }], [{ value: 'Hourly Total' }], [{ value: 'Total Revenue' }], ...jq.map(m => [{ value: m.job_code }])]
 
     for (let i of [...months].reverse()) {
-        data[0].push({ value: `${i.month}-${i.year}`, align: 'center' }, {})
+        data[0].push({ value: `${monthNames[i.month - 1]}-${i.year}`, align: 'center' }, {})
+        data[1].push({ value: 0 }, { value: 0 })
+        data[2].push({ value: 0 }, { value: 0 })
+        data[3].push({}, { value: 0 })
         for (let j in jq) {
             let m = jq[j]
-            if (m.is_hourly) data[parseInt(j) + 1].push({ value: hrly_data[m.job_code][`${i.month}-${i.year}`], align: 'left' },
-                { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
-            else data[parseInt(j) + 1].push({ value: ppd_data[m.job_code][`${i.month}-${i.year}`], align: 'left' },
-                { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
+            if (m.is_hourly) {
+                data[parseInt(j) + 1].push({ value: hrly_data[m.job_code][`${i.month}-${i.year}`], align: 'left' }, { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
+                data[1][1].value += hrly_data[m.job_code][`${i.month}-${i.year}`]
+                data[1][2].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[3][2].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
+            }
+            else {
+                data[parseInt(j) + 1].push({ value: ppd_data[m.job_code][`${i.month}-${i.year}`], align: 'left' }, { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left' })
+                data[2][1].value += ppd_data[m.job_code][`${i.month}-${i.year}`]
+                data[2][2].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[3][2].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
+            }
         }
     }
 
@@ -1151,6 +1163,7 @@ Router.get('/excel', async (req, res) => {
     data[3][1].value = total_revenue
     data[4][1].value = total_hours
     data[5][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours, 3)
+    data[5][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : undefined
 
     // Set column widths
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
