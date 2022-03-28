@@ -1141,14 +1141,11 @@ Router.get('/excel', async (req, res) => {
     if (tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid].timesheets) {
         if (!tsheetsVisited.has(sheet.id)) {
             if (!discrepancies[uid]) discrepancies[uid] = []
-            discrepancies[uid].push({ jc: sheet.customfields ? sheet.customfields['1164048'] || sheet.notes : sheet.notes, ts_count: sheet.count, count: 0, date: date })
+            discrepancies[uid].push({ jc: sheet.customfields ? sheet.customfields['1164048'] || sheet.notes : sheet.notes, ts_hours: sheet.hours, count: 0, date: date })
         }
     }
 
-    applicableUsers.forEach(u => { if (discrepancies[u]) data.push(...getDiscrepancy(u), [], []) })
-
-    console.log(discrepancies)
-
+    applicableUsers.forEach(u => { if (discrepancies[u] && discrepancies[u].length > 0) data.push(...getDiscrepancy(u), [], []) })
 
     // Update global totals
     data[3][1].value = total_revenue
