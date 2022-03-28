@@ -878,14 +878,10 @@ Router.get('/excel', async (req, res) => {
                 //job price, hours spent, count, goal, count/hour, revenue, revenue/hour
                 let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = []
 
-                console.log(tsheets_data[start])
-                if (tsheets_data[start]) console.log(tsheets_data[start][id].timesheets)
-                console.log(jc)
-
-
                 job_price = job_codes[jc].price
                 goal = job_codes[jc].hourly_goal || '-'
-                if (tsheets_data[start]) for (let i of tsheets_data[start][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
+
 
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
@@ -966,12 +962,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
 
-
-                // console.log(tsheets_data[date][id].timesheets)
-                // console.log(jc)
-
-
-                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += i.count; tsheetsVisited.add(i.id) }
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += i.count; tsheetsVisited.add(i.id) }
 
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
@@ -1206,7 +1197,7 @@ async function getTsheetsData(job_codes, start, end) {
 
         let sheets = ts_call.data.results.timesheets
 
-        if (sheets.more) page++
+        if (ts_call.data.more) page++
         else loop = false
 
         for (let ind in sheets) { //this might have to be 'for in'
