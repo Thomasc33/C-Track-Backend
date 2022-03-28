@@ -6,11 +6,14 @@ const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 const reportTunables = require('../reportTunables.json')
 const SnipeBearer = require('../settings.json').snipeBearer
+const tsheetsBearer = require('../settings.json').tsheets.token
 const snipeAPILink = 'https://cpoc.snipe-it.io/api/v1'
 const jobIdToSnipe = require('../snipeJobCodeConversion.json')
 const userIdToSnipe = require('../snipeUserConversion.json')
 const snipeToJobId = Object.fromEntries(Object.entries(jobIdToSnipe).map(a => a.reverse()))
 const snipeToUID = Object.fromEntries(Object.entries(userIdToSnipe).map(a => a.reverse()))
+const UIDtoTSheetsUID = require('../tsheetsUidConversion.json')
+const TSheetsUIDtoUID = Object.fromEntries(Object.entries(UIDtoTSheetsUID).map(a => a.reverse()))
 
 Router.get('/users/daily/:date', async (req, res) => {
     // Check token using toUid function
@@ -291,7 +294,7 @@ Router.post('/generate', async (req, res) => {
     let applicableUsers = new Set()
     if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
-    let applicableUserString = [...applicableUsers].join(',')
+    let applicableUserString = [...applicableUsers].map(m => UIDtoTSheetsUID[m] || undefined).join(',')
 
 
     // Get Job Code Names
@@ -312,7 +315,7 @@ Router.post('/generate', async (req, res) => {
      * }
      */
 
-    const tsheets_data = await getTsheetsData(req.headers.authorization, applicableUserString, range, date)
+    const tsheets_data = await getTsheetsData(applicableUserString, job_codes, range, date)
 
 
     // The fun stuff :)
@@ -771,10 +774,9 @@ Router.get('/excel', async (req, res) => {
     let applicableUsers = new Set()
     if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
-    let applicableUserString = [...applicableUsers].join(',')
+    let applicableUserString = [...applicableUsers].filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined).join(',')
+    console.log(applicableUserString)
 
-    // Get Tsheets Data
-    const tsheets_data = await getTsheetsData(req.headers.authorization, applicableUserString, start, end)
 
     // Get Job Code Names
     let job_codes = {}
@@ -782,6 +784,10 @@ Router.get('/excel', async (req, res) => {
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
     for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price, hourly_goal: i.hourly_goal, requires_asset: i.requires_asset }
+
+    // Get Tsheets Data
+    const tsheets_data = await getTsheetsData(applicableUserString, job_codes, start, end)
+    console.log(JSON.stringify(tsheets_data, null, 4))
 
     const data = [
         [{ value: 'Report Date' }],
@@ -849,7 +855,7 @@ Router.get('/excel', async (req, res) => {
                 for (let d of dates) {
                     let h = 0, c = 0
                     d = d.toISOString().split('T')[0]
-                    for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
                     for (let i of asset_tracking_query) {
                         try {
                             if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) c++
@@ -872,8 +878,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
                 goal = job_codes[jc].hourly_goal || '-'
-
-                if (tsheets_data[date]) for (let i of tsheets_data[date][id]) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+                if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
 
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
@@ -934,7 +939,7 @@ Router.get('/excel', async (req, res) => {
                 for (let d of dates) {
                     let h = 0, c = 0
                     d = d.toISOString().split('T')[0]
-                    for (let i of tsheets_data[d][id]) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
+                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += i.count }
                     for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) count += i.hours
                     let r = parseFloat(job_codes[jc].price) * parseFloat(c)
                     row.push({ value: c }, { value: r }, { value: h })
@@ -955,7 +960,7 @@ Router.get('/excel', async (req, res) => {
                 job_price = job_codes[jc].price
 
                 if (tsheets_data[date])
-                    for (let i of tsheets_data[date][id]) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
+                    for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == jc) { ts_hours += i.hours; ts_count += i.count }
 
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
@@ -990,7 +995,7 @@ Router.get('/excel', async (req, res) => {
             for (let i in snipeData[date][id]) {
                 if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
                     let ts_count, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
-                    if (tsheets_data[date]) for (let i of tsheets_data[date][id]) if (i.jobCode == i) { ts_count += i.count }
+                    if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += i.count }
                     discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
                 }
             }
@@ -1000,7 +1005,7 @@ Router.get('/excel', async (req, res) => {
         let fiveDayHours = 0.0
 
         // Five day hours counter, assumed tsheets_data was grabbed with start date-6days
-        if (range) for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id]) fiveDayHours += j.hours
+        if (range) for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id].timesheets) fiveDayHours += j.hours
 
         // Five day revenue counter
         five_day_asset_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
@@ -1142,66 +1147,63 @@ function getDate(date) {
  */
 /**
  * 
- * @param {String} authorization 
  * @param {String} applicableUserString 
  * @param {Date} start The start date
  * @param {Date} end The end date
  * @returns {Object} tsheets_data
  */
-async function getTsheetsData(authorization, applicableUserString, start, end) {
-    const ts_authorization = await tokenParsing.getTSheetsToken(authorization)
-        .then(d => d.token)
-        .catch(er => { return null })
-    if (!ts_authorization) return {}
-
+async function getTsheetsData(applicableUserString, job_codes, start, end) {
     const tsheets_data = {}
-
-    if (ts_authorization) {
-        let job_code_cache = {} //tsid:db id
-        let loop = true, failed = false
-        let page = 1
-        do {
-            let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
-                params: {
-                    user_ids: applicableUserString,
-                    start_date: start,
-                    end_date: end || start,
-                    page: page
-                }, headers: {
-                    Authorization: ts_authorization
-                }
-            }).catch(er => { failed = true })
-            if (failed) break;
-            if (!ts_call.data.results) { failed = true; break; }
-
-            let sheets = ts_call.data.results.timesheets
-
-            if (sheets.more) page++
-            else loop = false
-
-            for (let i of sheets) { //this might have to be 'for in'
-                if (!tsheets_data[i.date]) tsheets_data[i.date] = {}
-                if (!tsheets_data[i.date][i.user_id]) tsheets_data[i.date][i.user_id] = { userObj: sheets.supplemental_data.users[i.user_id], timesheets: [] }
-                if (job_code_cache[i.jobcode_id]) i.jobCode = job_code_cache[i.jobcode_id]
-                else {
-                    let f = false
-                    for (let j in job_codes) {
-                        if (j.name.replace(/[:-]/gi, ' ').toLowerCase() == sheets.supplemental_data.jobcodes[i.jobcode_id].name.replace(/[:-]/gi, ' ').toLowerCase()) {
-                            f = true
-                            i.jobCode = j
-                            job_code_cache[i.jobcode_id] = j
-                            break;
-                        }
-                    }
-                    if (!f) i.jobCode = null
-                }
-                i.count = i.notes ? i.notes.replace(/[:-]/g, ' ').split(' ')[0] : 0
-                if (isNaN(i)) i = 0
-                i.hours = i.duration / 3600
-                tsheets_data[i.date][i.user_id].timesheets.push(i)
+    const reversedJobCodes = Object.fromEntries(Object.entries(job_codes).map(a => a.reverse()))
+    let job_code_cache = {} //tsid:db id
+    let loop = true, failed = false
+    let page = 1
+    do {
+        let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
+            params: {
+                user_ids: applicableUserString,
+                start_date: start,
+                end_date: end || undefined,
+                page: page
+            }, headers: {
+                Authorization: `Bearer ${tsheetsBearer}`
             }
-        } while (loop)
-    }
+        }).catch(er => { console.log(er); failed = true })
+        if (failed) break;
+        if (!ts_call.data.results) { failed = true; break; }
+
+        let sheets = ts_call.data.results.timesheets
+
+        if (sheets.more) page++
+        else loop = false
+
+        for (let ind in sheets) { //this might have to be 'for in'
+            let i = sheets[ind]
+            let d = i.date
+            let uid = TSheetsUIDtoUID[`${i.user_id}`] // check data type, the key is string, key[id] is Number
+            if (!tsheets_data[d]) tsheets_data[d] = {}
+            if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
+            if (job_code_cache[i.jobcode_id]) i.jobCode = job_code_cache[i.jobcode_id]
+            else {
+                let f = false
+                for (let j in job_codes) {
+                    if (job_codes[j].name.replace(/[:-]/gi, ' ').toLowerCase() == i.customfields['1164048'].replace(/[:-]/gi, ' ').toLowerCase()) {
+                        f = true
+                        i.jobCode = j
+                        job_code_cache[i.jobcode_id] = j
+                        break;
+                    }
+                }
+                if (!f) i.jobCode = null
+            }
+            i.count = i.notes ? i.notes.replace(/[:-]/g, ' ').split(' ')[0] : 0
+            if (isNaN(i)) i = 0
+            i.hours = i.duration / 3600
+            console.log(tsheets_data, i.date, TSheetsUIDtoUID[i.user_id])
+            tsheets_data[d][uid].timesheets.push(i)
+        }
+    } while (loop)
+
     if (Object.keys(tsheets_data).length == 0) tsheets_data = null
     return tsheets_data
 }
