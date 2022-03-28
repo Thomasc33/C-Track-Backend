@@ -1135,16 +1135,16 @@ Router.get('/excel', async (req, res) => {
         return d
     }
 
+    applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
+
     // In T-Sheets but not C-Track
-    if (tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid]) {
+    if (tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid].timesheets) {
         if (!tsheetsVisited.has(sheet.id)) {
-            if (!discrepancies[u]) discrepancies[u] = {}
-            discrepancies[u].push({ jc: sheet.customfields ? sheet.customfields['1164048'] || sheet.notes : sheet.notes, ts_count: sheet.count, count: 0, date: d })
+            if (!discrepancies[uid]) discrepancies[uid] = []
+            discrepancies[uid].push({ jc: sheet.customfields ? sheet.customfields['1164048'] || sheet.notes : sheet.notes, ts_count: sheet.count, count: 0, date: date })
         }
     }
 
-
-    applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
     applicableUsers.forEach(u => { if (discrepancies[u]) data.push(...getDiscrepancy(u), [], []) })
 
     console.log(discrepancies)
