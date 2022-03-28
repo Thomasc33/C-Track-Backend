@@ -14,6 +14,9 @@ const snipeToJobId = Object.fromEntries(Object.entries(jobIdToSnipe).map(a => a.
 const snipeToUID = Object.fromEntries(Object.entries(userIdToSnipe).map(a => a.reverse()))
 const UIDtoTSheetsUID = require('../tsheetsUidConversion.json')
 const TSheetsUIDtoUID = Object.fromEntries(Object.entries(UIDtoTSheetsUID).map(a => a.reverse()))
+const JobCodePairs = require('../jobCodePairs.json')
+const JobCodePairsSet = new Set()
+JobCodePairs.forEach(a => a.forEach(ele => JobCodePairsSet.add(ele)))
 
 Router.get('/users/daily/:date', async (req, res) => {
     // Check token using toUid function
@@ -871,7 +874,7 @@ Router.get('/excel', async (req, res) => {
             }
             else {
                 //job price, hours spent, count, goal, count/hour, revenue, revenue/hour
-                let job_price = 0, ts_hours = 0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = []
+                let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = []
 
                 job_price = job_codes[jc].price
                 goal = job_codes[jc].hourly_goal || '-'
@@ -967,6 +970,27 @@ Router.get('/excel', async (req, res) => {
 
                 hrly_revenue = job_price
 
+                if (JobCodePairsSet.has(jc)) {
+                    let complimentaryJC
+                    for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
+                    console.log(job_codes, complimentaryJC, jc)
+                    if (complimentaryJC) for (let i of d) {
+                        if (i.length < 6) continue
+                        if (job_codes[`${complimentaryJC}`]) if (i[0].value == job_codes[jc].name && i[0].value == job_codes[`${complimentaryJC}`].name) {
+                            if (i[1].value < job_price) i[1].value = job_price
+                            ts_hours = i[2].value
+                            if (ts_hours !== count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
+                            if (i[6].value < revenue) i[6].value = revenue
+                            if (i[7].value == '-' || i[7].value < hrly_revenue) {
+                                i[7].value = hrly_revenue;
+                                i[7].backgroundColor = hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                            }
+
+                            ind++
+                            return
+                        }
+                    }
+                }
                 //discrepancy check
                 if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date, snipe_count: '-' })
 
@@ -984,6 +1008,7 @@ Router.get('/excel', async (req, res) => {
                             hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
                                 ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
                     }])
+
                 ind++
             }
         })
@@ -1181,7 +1206,7 @@ async function getTsheetsData(applicableUserString, job_codes, start, end) {
             i.localUid = uid
             if (!tsheets_data[d]) tsheets_data[d] = {}
             if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
-            if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid: ${uid}'s entry with id of ${i.id}`) }
+            if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid: ${uid}'s entry with id of ${i.id}\n${i.customfields.map((val, key) => `${key}: ${val}`).join(', ')}`); continue }
             let jc_name = i.customfields['1164048'].split(':').splice(1).join(':').replace(/[:-\s]/gi, '').toLowerCase()
             if (!jc_name) { console.log(`Missing jc_name from uid: ${uid}'s entry with id of ${i.id}`); continue }
             if (job_code_cache[`${jc_name}`]) i.jobCode = job_code_cache[`${jc_name}`]
