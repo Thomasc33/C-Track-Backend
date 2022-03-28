@@ -878,8 +878,8 @@ Router.get('/excel', async (req, res) => {
                 //job price, hours spent, count, goal, count/hour, revenue, revenue/hour
                 let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = []
 
-
-                console.log(tsheets_data[date][id].timesheets)
+                console.log(tsheets_data[date])
+                if (tsheets_data[date]) console.log(tsheets_data[date][id].timesheets)
                 console.log(jc)
 
 
