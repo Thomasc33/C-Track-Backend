@@ -978,7 +978,8 @@ Router.get('/excel', async (req, res) => {
                         if (i.length < 6) continue
                         if (job_codes[`${complimentaryJC}`]) if (i[0].value == job_codes[jc].name && i[0].value == job_codes[`${complimentaryJC}`].name) {
                             if (i[1].value < job_price) i[1].value = job_price
-                            ts_hours = i[2].value
+                            if (ts_hours) i[2].value = ts_hours
+                            else ts_hours = i[2].value
                             if (ts_hours !== count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
                             if (i[6].value < revenue) i[6].value = revenue
                             if (i[7].value == '-' || i[7].value < hrly_revenue) {
