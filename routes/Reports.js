@@ -980,7 +980,7 @@ Router.get('/excel', async (req, res) => {
 
                 job_price = job_codes[jc].price
 
-                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += i.count; tsheetsVisited.add(i.id) }
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
 
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
