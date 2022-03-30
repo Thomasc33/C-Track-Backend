@@ -47,6 +47,14 @@ const apiLimit = rateLimit({
 })
 app.use('/a/', apiLimit)
 
+// Check Client Version
+app.use((req, res, next) => {
+    let version = req.headers['x-version']
+    if (version == 'ignore') return next()
+    if (!version || version !== require('./package.json').version) return res.status(426).json({ message: 'An upgrade is available. Please refresh the page.' })
+    next()
+})
+
 // Basic SQL Injection escaping
 app.use((req, res, next) => {
     if (req.body) for (let i in req.body) try { req.body[i] = req.body[i].replace(/--/g, '-').replace(/'/g, "''") } catch (er) { }
@@ -77,7 +85,7 @@ app.use(async (req, res, next) => {
         '/catalog'
     ]
     if (ignoreLogURLS.includes(req.url)) return
-    
+
     // Get UID
     const uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -101,7 +109,7 @@ app.use(async (req, res, next) => {
 
     // Return if required data points are missing
     if (!uid || !time) return
-    
+
     // Send to DB
     pool.request().query(`INSERT INTO history ([user], time, ip_address, route, body) VALUES ('${uid}','${time}','${ip}','${route}','${bodyString}')`)
         .catch(er => { console.log('error when inserting into log: ', er) })
