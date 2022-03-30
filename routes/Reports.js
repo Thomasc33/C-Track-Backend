@@ -512,11 +512,11 @@ Router.get('/excel', async (req, res) => {
     const snipeData = await getSnipeData(start)
 
     // Get Asset and Houly Data
-    let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+    let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${range}' AND date <= '${date}'` : `date = '${date}'`}`)
         .then(d => d.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking_query && asset_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
 
-    let hourly_tracking_query = await pool.request().query(`SELECT * FROM hourly_tracking WHERE ${range ? `date >= '${date}' AND date <= '${range}'` : `date = '${date}'`}`)
+    let hourly_tracking_query = await pool.request().query(`SELECT * FROM hourly_tracking WHERE ${range ? `date >= '${range}' AND date <= '${date}'` : `date = '${date}'`}`)
         .then(d => d.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (hourly_tracking_query && hourly_tracking_query.isErrored) return res.status(500).json({ message: 'Error fetching hourly tracking records' })
 
@@ -556,9 +556,7 @@ Router.get('/excel', async (req, res) => {
         [{ value: 'Total Revenue', leftBorderStyle: 'thick', topBorderStyle: 'thick' }, { value: 0, topBorderStyle: 'thick', rightBorderStyle: 'thick' }],
         [{ value: 'Total Hours', leftBorderStyle: 'thick' }, { value: 0, rightBorderStyle: 'thick' }],
         [{ value: 'Average Hourly Revenue', leftBorderStyle: 'thick', bottomBorderStyle: 'thick' }, { value: 0, bottomBorderStyle: 'thick', rightBorderStyle: 'thick' }],
-        [],
-        [],
-        []
+        [], [], []
     ]
     let total_hours = 0
     let total_revenue = 0
@@ -572,32 +570,26 @@ Router.get('/excel', async (req, res) => {
         // Get list of dates
         let dates = []
         if (range) {
-            let start = new Date(date)
-            let end = new Date(range)
+            let start = new Date(range)
+            let end = new Date(date)
             while (start <= end) {
-                dates.push(new Date(start))
+                dates.push(new Date(start).toISOString().split('T')[0])
                 start = start.addDays(1)
             }
-        }
+        } else dates.push(date)
 
         d.push([{ fontSize: 24, value: usernames[id] || id }])
         d.push([{ value: 'Job Code', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' }])
 
-        if (range) {
-            d[1].push({ value: 'Total Count' }, { value: 'Total Revenue' }, { value: 'Average Revenue/Hr' }, { value: 'Average Count/Hr' })
-            for (let i of dates) {
-                let s = i.toISOString().split('T')[0].substring(5)
-                d[1].push({ value: `${s} #` }, { value: `${s} $` }, { value: `${s} TS-Hr` })
-            }
-        } else {
-            d[1].push({ value: '$ Per Job', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
-                { value: 'Hours/Day', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
-                { value: 'Count/Day', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
-                { value: 'Goal/Hr', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
-                { value: 'Average Count/Hour', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
-                { value: 'Revenue', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
-                { value: 'Revenue/Hr', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
-        }
+
+        d[1].push({ value: '$ Per Job', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
+            { value: range ? 'Total Hours' : 'Hours/Day', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
+            { value: range ? 'Total Count' : 'Count/Day', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
+            { value: 'Goal/Hr', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
+            { value: 'Average Count/Hour', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
+            { value: range ? 'Total Revenue' : 'Revenue', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
+            { value: 'Revenue/Hr', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
+        if (range) d[1].push({ value: 'Daily Revenue', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
 
         let assetJobCodes = new Set()
         let hourlyJobCodes = new Set()
@@ -609,50 +601,29 @@ Router.get('/excel', async (req, res) => {
 
         let ind = 0
         assetJobCodes.forEach(jc => {
-            //count totals
-            if (range) {
-                let row = [], revs = []
-                let tot_count = 0, tot_ts_count = 0, tot_rev = 0, ave_rev, tot_h
-                for (let d of dates) {
-                    let h = 0, c = 0
-                    d = d.toISOString().split('T')[0]
-                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += parseInt(i.count) }
-                    for (let i of asset_tracking_query) {
-                        try {
-                            if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) c++
-                        } catch (e) { console.log(e) }
-                    }
-                    let r = parseFloat(job_codes[jc].price) * parseFloat(c)
-                    row.push({ value: c }, { value: r }, { value: h })
-                    totalhours += h //For user average
-                    tot_h += h // For row average
-                    revs.push({ value: r })
-                    tot_count += c
-                    tot_rev += r
+
+            let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = [], dailyRevenue = 0, days = 0
+
+            // Complimentary job code
+            let complimentaryJC
+            if (JobCodePairsSet.has(jc)) for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
+
+            job_price = job_codes[jc].price
+            goal = job_codes[jc].hourly_goal || '-'
+
+            for (let date of dates) {
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || i.jobCode == complimentaryJC) {
+                    ts_hours += i.hours;
+                    ts_count += parseInt(i.count);
+                    tsheetsVisited.add(i.id)
                 }
-                ave_rev = revs.reduce(a, b => a + b) / revs.length // Average
-                row.unshift({ value: tot_count }, { value: tot_ts_count }, { value: tot_rev }, { value: ave_rev }, { value: tot_count / tot_h })
-            }
-            else {
-                //job price, hours spent, count, goal, count/hour, revenue, revenue/hour
-                let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = []
-
-                // Complimentary job code
-
-                let complimentaryJC
-                if (JobCodePairsSet.has(jc)) for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
-
-                job_price = job_codes[jc].price
-                goal = job_codes[jc].hourly_goal || '-'
-                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || i.jobCode == complimentaryJC) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
-
 
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
-                count = assets.length
+                count += assets.length
 
                 if (snipeData && snipeData[date] && snipeData[date][id] && (snipeData[date][id][jc] || snipeData[date][id][parseInt(jc)])) {
-                    snipe_count = snipeData[date][id][jc] ? snipeData[date][id][jc].length : snipeData[date][id][parseInt(jc)].length;
+                    snipe_count += snipeData[date][id][jc] ? snipeData[date][id][jc].length : snipeData[date][id][parseInt(jc)].length;
                     let s = snipeData[date][id][jc] ? snipeData[date][id][jc].map(m => m.toUpperCase().trim()) : snipeData[date][id][parseInt(jc)].map(m => m.toUpperCase().trim())
                     let a = assets.map(m => m.toUpperCase().trim())
                     unique = [...a.filter(e => s.indexOf(e) === -1), ...s.filter(e => a.indexOf(e) === -1)]
@@ -660,101 +631,89 @@ Router.get('/excel', async (req, res) => {
                     unique = assets.join(', ')
                 }
 
-                revenue = parseFloat(job_codes[jc].price) * parseFloat(count)
-                totalrevenue += revenue
-                totalhours += ts_hours
-
-                if (goal == '-') hrly_count = '-'
-                else hrly_count = round(count / (ts_hours || count), 3)
-
-                hrly_revenue = round(revenue / ts_hours, 3)
-                if (revenue == 0) hrly_revenue = '-'
-                if (hrly_revenue == Infinity) hrly_revenue = 0
-
-                // discrepancy check
-                if (job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count) || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
-
-                d.push([
-                    {
-                        value: job_codes[jc].name,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
-                    },
-                    {
-                        value: job_price,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
-                    },
-                    {
-                        value: ts_hours,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
-                    },
-                    {
-                        value: count,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
-                    },
-                    {
-                        value: goal,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
-                    },
-                    {
-                        value: hrly_count,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor : hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor : reportTunables.goalColor
-                    },
-                    {
-                        value: revenue,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
-                    },
-                    {
-                        value: hrly_revenue,
-                        rightBorderStyle: 'thin',
-                        bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
-                    }])
-
-                ind++
+                if (range) if (![0, 6].includes(new Date(date).getDay()) && assets.length) days++
             }
+
+            revenue = parseFloat(job_price) * parseFloat(count)
+            totalrevenue += revenue
+            totalhours += ts_hours
+
+            if (!days) days = 1
+            dailyRevenue = round(revenue / days, 3)
+
+            if (goal == '-') hrly_count = '-'
+            else hrly_count = round(count / (ts_hours || count), 3)
+
+            hrly_revenue = round(revenue / ts_hours, 3)
+            if (revenue == 0) hrly_revenue = '-'
+            if (hrly_revenue == Infinity) hrly_revenue = 0
+
+            // discrepancy check
+            if (job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count) || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
+
+            d.push([
+                {
+                    value: job_codes[jc].name,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                },
+                {
+                    value: job_price,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                },
+                {
+                    value: ts_hours,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                },
+                {
+                    value: count,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                },
+                {
+                    value: goal,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                },
+                {
+                    value: hrly_count,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor : hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor : reportTunables.goalColor
+                },
+                {
+                    value: revenue,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+                },
+                {
+                    value: hrly_revenue,
+                    rightBorderStyle: 'thin',
+                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
+                }])
+            if (range) d[d.length - 1].push({
+                value: revenue / days,
+                rightBorderStyle: 'thin',
+                bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+            })
+            ind++
         })
 
         hourlyJobCodes.forEach(jc => {
             //count totals
-            if (range) {
-                let row = [], revs = []
-                let tot_count = 0, tot_ts_count = 0, tot_rev = 0, ave_rev, tot_h
-                for (let d of dates) {
-                    let h = 0, c = 0
-                    d = d.toISOString().split('T')[0]
-                    for (let i of tsheets_data[d][id].timesheets) if (i.jobCode == jc) { h += i.hours; tot_ts_count += parseInt(i.count) }
-                    for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == d && i.job_code == jc) count += i.hours
-                    let r = parseFloat(job_codes[jc].price) * parseFloat(c)
-                    row.push({ value: c }, { value: r }, { value: h })
-                    totalhours += h //For user average
-                    tot_h += h // For row average
-                    revs.push({ value: r })
-                    tot_count += c
-                    tot_rev += r
-                }
-                ave_rev = revs.reduce(a, b => a + b) / revs.length // Average
-                row.unshift(tot_count, tot_ts_count, tot_rev, ave_rev, tot_count / tot_h)
-                d.push(row)
+            let job_price = job_codes[jc].price, tot_ts_hours = 0, tot_count = 0, revenue = 0, hrly_revenue = 0, days = 0, dailyRevenue = 0
 
-            }
-            else {
-                let job_price = 0, ts_hours = 0, ts_count = 0, count = 0, revenue = 0, hrly_revenue = 0
-
-                job_price = job_codes[jc].price
+            for (let date of dates) {
+                let ts_hours = 0, ts_count = 0, count = 0
 
                 if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
 
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
-                revenue = ts_hours ? parseFloat(job_codes[jc].price) * parseFloat(ts_hours) : parseFloat(job_codes[jc].price) * parseFloat(count)
+                revenue += ts_hours ? parseFloat(job_codes[jc].price) * parseFloat(ts_hours) : parseFloat(job_codes[jc].price) * parseFloat(count)
                 totalrevenue += revenue
-                totalhours += ts_hours
+                totalhours += ts_hours ? ts_hours : count
 
                 hrly_revenue = job_price
 
@@ -766,7 +725,7 @@ Router.get('/excel', async (req, res) => {
                         if (job_codes[`${complimentaryJC}`]) if (i[0].value == job_codes[jc].name && i[0].value == job_codes[`${complimentaryJC}`].name) {
                             if (parseFloat(i[1].value) < parseFloat(job_price)) i[1].value = job_price
                             if (ts_hours) i[2].value = ts_hours
-                            else ts_hours = i[2].value
+                            else ts_hours += i[2].value
                             if (ts_hours != count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
                             if (i[6].value < revenue) i[6].value = revenue
                             if (i[7].value == '-' || i[7].value < hrly_revenue) {
@@ -789,23 +748,30 @@ Router.get('/excel', async (req, res) => {
                 //discrepancy check
                 if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date, snipe_count: '-' })
 
-                d.push([
-                    { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: job_price, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: ts_hours || count, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    {
-                        value: hrly_revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null,
-                        backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor :
-                            hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
-                                reportTunables.goalColor
-                    }])
-
-                ind++
+                tot_ts_hours += ts_hours
+                tot_count += count
+                if (range) if (![0, 6].includes(new Date(date).getDay()) && (count || ts_hours)) days++
             }
+
+            if (range && !days) days = 1
+            if (range) dailyRevenue = revenue / days
+
+            d.push([
+                { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                { value: job_price, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                { value: tot_ts_hours || tot_count, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                { value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                {
+                    value: hrly_revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null,
+                    backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor :
+                        hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
+                            reportTunables.goalColor
+                }])
+            if (range) d[d.length - 1].push({ value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },)
+            ind++
         })
 
         if (snipeData && snipeData[date] && snipeData[date][id]) {
@@ -821,12 +787,14 @@ Router.get('/excel', async (req, res) => {
         let fiveDayRevenue = 0.0
         let fiveDayHours = 0.0
 
-        // Five day hours counter, assumed tsheets_data was grabbed with start date-6days
-        for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id].timesheets) fiveDayHours += j.hours
+        if (!range) {
+            // Five day hours counter, assumed tsheets_data was grabbed with start date-6days
+            for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id].timesheets) fiveDayHours += j.hours
 
-        // Five day revenue counter
-        five_day_asset_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
-        five_day_hourly_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) * parseFloat(row.hours) })
+            // Five day revenue counter
+            five_day_asset_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
+            five_day_hourly_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) * parseFloat(row.hours) })
+        }
 
         // Totals section
         let temp_rows = [[
@@ -840,12 +808,12 @@ Router.get('/excel', async (req, res) => {
             { value: '5-Day Hours' },
             { value: fiveDayHours, rightBorderStyle: 'thin' },
         ], [
-            { value: 'Hourly Revenue', },
+            { value: 'Hourly Revenue' },
             { value: totalhours ? round(totalrevenue / totalhours, 3) : 0, rightBorderStyle: 'thin' },
             { value: '5-Day Hourly Revenue' },
             { value: fiveDayHours ? round(fiveDayRevenue / fiveDayHours, 3) : 0, rightBorderStyle: 'thin' },
         ]]
-        if (range && date) { temp_rows[0][2] = {}; temp_rows[0][3] = {}; temp_rows[1][2] = {}; temp_rows[1][3] = {}; temp_rows[2][2] = {}; temp_rows[2][3] = {} }
+        if (range) { temp_rows[0][2] = {}; temp_rows[0][3] = {}; temp_rows[1][2] = {}; temp_rows[1][3] = {}; temp_rows[2][2] = {}; temp_rows[2][3] = {} }
         d.push([], [], ...temp_rows)
 
         // Add to all users totals
@@ -905,8 +873,6 @@ Router.get('/excel', async (req, res) => {
             ])
         }
 
-
-
         // Add thick border to entire section
         let cols = 0, rows = d.length
         for (let i of d) if (i.length > cols) cols = i.length
@@ -929,7 +895,6 @@ Router.get('/excel', async (req, res) => {
         }
         return d
     }
-
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
 
     // In T-Sheets but not C-Track
@@ -950,6 +915,7 @@ Router.get('/excel', async (req, res) => {
 
     // Set column widths
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
+    if (range) columns.push({ width: 17.5 })
 
     return res.status(200).json({ data, columns })
 })
