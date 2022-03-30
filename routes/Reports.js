@@ -655,49 +655,49 @@ Router.get('/excel', async (req, res) => {
                 {
                     value: job_codes[jc].name,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+
                 },
                 {
                     value: job_price,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+
                 },
                 {
                     value: ts_hours,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+
                 },
                 {
                     value: count,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+
                 },
                 {
                     value: goal,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+
                 },
                 {
                     value: hrly_count,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor : hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor : reportTunables.goalColor
+                    backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor : hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor : reportTunables.goalColor
                 },
                 {
                     value: revenue,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+
                 },
                 {
                     value: hrly_revenue,
                     rightBorderStyle: 'thin',
-                    bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
+                    backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
                 }])
             if (range) d[d.length - 1].push({
                 value: revenue / days,
                 rightBorderStyle: 'thin',
-                bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
+
             })
-            d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
+            d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
             ind++
         })
 
@@ -758,21 +758,21 @@ Router.get('/excel', async (req, res) => {
             if (range) dailyRevenue = revenue / days
 
             d.push([
-                { value: job_codes[jc].name, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                { value: job_price, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                { value: tot_ts_hours || tot_count, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                { value: '-', rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                { value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
+                { value: job_codes[jc].name, rightBorderStyle: 'thin', },
+                { value: job_price, rightBorderStyle: 'thin', },
+                { value: tot_ts_hours || tot_count, rightBorderStyle: 'thin', },
+                { value: '-', rightBorderStyle: 'thin', },
+                { value: '-', rightBorderStyle: 'thin', },
+                { value: '-', rightBorderStyle: 'thin', },
+                { value: revenue, rightBorderStyle: 'thin', },
                 {
-                    value: hrly_revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null,
+                    value: hrly_revenue, rightBorderStyle: 'thin',
                     backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor :
                         hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor :
                             reportTunables.goalColor
                 }])
-            if (range) d[d.length - 1].push({ value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },)
-            d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
+            if (range) d[d.length - 1].push({ value: revenue, rightBorderStyle: 'thin', },)
+            d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
             ind++
         })
 
@@ -783,6 +783,22 @@ Router.get('/excel', async (req, res) => {
             if (row[revenueIndex].value == '-') return row[revenuePercentageIndex].value = 0
             row[revenuePercentageIndex].value = round(row[revenueIndex].value / totalrevenue * 100, 3)
         })
+
+        // Sort rows
+        let revenuePerHourIndex = revenueIndex + 1
+        d.sort((a, b) => a[0].value == usernames[id] || a[0].value == id ? 1 :
+            b[0].value == usernames[id] || b[0].value == id ? 1 :
+                a[0].value == 'Job Code' ? 1 :
+                    b[0].value == 'Job Code' ? 1 :
+                        a[revenuePerHourIndex].value == '-' ? 1 :
+                            b[revenuePerHourIndex].value == '-' ? -1 :
+                                a[revenuePerHourIndex].value >= b[revenuePerHourIndex].value ? -1 : 1)
+
+        // Add bottom border
+        for (let i in d[d.length - 1]) d[d.length - 1][i].bottomBorderStyle = 'thin'
+
+        // Apply alternating color to rows
+        for (let i in d) if (![0, 1].includes(parseInt(i)) && i % 2 == 1) { console.log(i); for (let j in d[i]) d[i][j].backgroundColor = reportTunables.rowAlternatingColor }
 
         if (snipeData && snipeData[date] && snipeData[date][id]) {
             for (let i in snipeData[date][id]) {
