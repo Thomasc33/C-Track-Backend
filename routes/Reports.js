@@ -590,6 +590,7 @@ Router.get('/excel', async (req, res) => {
             { value: range ? 'Total Revenue' : 'Revenue', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
             { value: 'Revenue/Hr', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
         if (range) d[1].push({ value: 'Daily Revenue', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
+        d[1].push({ value: 'Revenue %', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
 
         let assetJobCodes = new Set()
         let hourlyJobCodes = new Set()
@@ -601,7 +602,6 @@ Router.get('/excel', async (req, res) => {
 
         let ind = 0
         assetJobCodes.forEach(jc => {
-
             let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = [], dailyRevenue = 0, days = 0
 
             // Complimentary job code
@@ -697,6 +697,7 @@ Router.get('/excel', async (req, res) => {
                 rightBorderStyle: 'thin',
                 bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined
             })
+            d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size && hourlyJobCodes.size === 0 ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
             ind++
         })
 
@@ -771,7 +772,16 @@ Router.get('/excel', async (req, res) => {
                             reportTunables.goalColor
                 }])
             if (range) d[d.length - 1].push({ value: revenue, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },)
+            d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', bottomBorderStyle: ind + 1 == assetJobCodes.size + hourlyJobCodes.size ? 'thin' : null, backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
             ind++
+        })
+
+        // Get Percentage
+        let revenueIndex = 6, revenuePercentageIndex = range ? 9 : 8
+        d.forEach((row, i) => {
+            if ([0, 1].includes(i)) return
+            if (row[revenueIndex].value == '-') return row[revenuePercentageIndex].value = 0
+            row[revenuePercentageIndex].value = round(row[revenueIndex].value / totalrevenue * 100, 3)
         })
 
         if (snipeData && snipeData[date] && snipeData[date][id]) {
@@ -914,7 +924,7 @@ Router.get('/excel', async (req, res) => {
     data[5][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
 
     // Set column widths
-    const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
+    const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
     if (range) columns.push({ width: 17.5 })
 
     return res.status(200).json({ data, columns })
