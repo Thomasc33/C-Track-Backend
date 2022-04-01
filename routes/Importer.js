@@ -29,7 +29,7 @@ Router.post('/asset', async (req, res) => {
     const assets_query = await pool.request().query(`SELECT id FROM assets`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (assets_query.isErrored) return res.status(500).json({ error: assets_query.error })
-    const assets = new Set(Array.from(assets_query.recordset, (v, k) => { return v.id }))
+    const assets = new Set(Array.from(assets_query.recordset, (v, k) => { return v.id.toUpperCase() }))
 
     // Data validation
     let validInserts = []
@@ -51,11 +51,11 @@ Router.post('/asset', async (req, res) => {
         }
 
         // Ensure asset doesnt already exist
-        if (assets.has(i.id)) { failedAssets.push({ id: `${i.id}`, reason: `Asset already exists` }); continue; }
+        if (assets.has(i.id.toUpperCase())) { failedAssets.push({ id: `${i.id}`, reason: `Asset already exists` }); continue; }
 
         // Add to valid inserts
         validInserts.push(i)
-        assets.add(i.id)
+        assets.add(i.id.toUpperCase())
     }
 
     if (validInserts.length < 1) return res.status(400).json({ error: 'No valid options found to import', failed: failedAssets })
@@ -165,8 +165,8 @@ Router.post('/legal', async (req, res) => {
     return res.status(200).json({ message: 'Success', failed: failedAssets })
 })
 
-Router.post('/parts', async (req, res) => { 
-    
+Router.post('/parts', async (req, res) => {
+
 })
 
 module.exports = Router
