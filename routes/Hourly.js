@@ -8,7 +8,8 @@ const typeOfToColumn = {
     notes: 'notes',
     job: 'job_code',
     start: 'start_time',
-    end: 'end_time'
+    end: 'end_time',
+    in_progress: 'in_progress'
 }
 
 Router.get('/user/:date', async (req, res) => {
@@ -54,7 +55,7 @@ Router.post('/user/new', async (req, res) => {
 
     // Get Params
     const data = req.body;
-    let { date, job_code, startTime, endTime, total_hours, notes } = data
+    let { date, job_code, startTime, endTime, total_hours, notes, in_progress } = data
     if (uid && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
     if (!uid) uid = t_uid
 
@@ -73,8 +74,10 @@ Router.post('/user/new', async (req, res) => {
         issues.push('Issue with Start Time')
     }
     if (!endTime || endTime.replace(/\d+:\d{2}/g, '') !== '' || parseInt(endTime.split(':')[0] > 24) || parseInt(endTime.split(':')[1] > 45) || parseInt(endTime.split(':')[1]) % 15 !== 0) {
-        errored = true
-        issues.push('Issue with End Time')
+        if (!in_progress) {
+            errored = true
+            issues.push('Issue with End Time')
+        }
     }
     if (!total_hours || `${total_hours}`.replace(/[\d.]/g, '') !== '') {
         errored = true
@@ -87,7 +90,7 @@ Router.post('/user/new', async (req, res) => {
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
     // Send to DB
-    let result = await pool.request().query(`INSERT INTO hourly_tracking (job_code, user_id, start_time, end_time, notes, hours, date) VALUES ('${job_code}', '${uid}', '${startTime}', '${endTime}', ${notes ? `'${notes}'` : 'null'}, '${total_hours}', '${date}')`)
+    let result = await pool.request().query(`INSERT INTO hourly_tracking (job_code, user_id, start_time, end_time, notes, hours, date, in_progress) VALUES ('${job_code}', '${uid}', '${startTime}', '${endTime}', ${notes ? `'${notes}'` : 'null'}, '${total_hours}', '${date}', '${in_progress ? '1' : '0'}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
