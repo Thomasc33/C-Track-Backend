@@ -10,11 +10,15 @@ GO
 
 CREATE TABLE [part_list]
 (
- [part_number]  varchar(50) NOT NULL ,
+ [id]           int IDENTITY (10000, 3) NOT NULL ,
  [part_type]    varchar(50) NOT NULL ,
- [model_number] varchar(50) NULL ,
+ [model_number] varchar(50) NOT NULL ,
+ [part_number]  varchar(50) NOT NULL ,
+ [image]		text NULL,
+ [minimum_stock] int NOT NULL,
 
- CONSTRAINT [PK_9] PRIMARY KEY CLUSTERED ([part_number] ASC),
+
+ CONSTRAINT [PK_9] PRIMARY KEY CLUSTERED ([id] ASC),
  CONSTRAINT [FK_part_type] FOREIGN KEY ([part_type])  REFERENCES [common_parts]([part_type]) ON DELETE NO ACTION ON UPDATE CASCADE,
  CONSTRAINT [FK_pl_model_number] FOREIGN KEY ([model_number])  REFERENCES [models]([model_number]) ON DELETE NO ACTION ON UPDATE CASCADE
 );
@@ -22,19 +26,20 @@ GO
 
 CREATE TABLE [parts]
 (
- [id]          int IDENTITY (10000, 3) NOT NULL ,
- [part_number] varchar(50) NOT NULL ,
- [used_by]     int NULL ,
- [location]    varchar(50) NOT NULL ,
- [added_by]    int NOT NULL ,
- [added_on]    datetime NOT NULL ,
- [used_on]     datetime NULL ,
+ [id]       int IDENTITY (10000, 3) NOT NULL ,
+ [part_id]  int NOT NULL ,
+ [used_by]  int NULL ,
+ [location] varchar(50) NULL ,
+ [added_by] int NOT NULL ,
+ [added_on] datetime NOT NULL ,
+ [used_on]  datetime NULL ,
+
 
  CONSTRAINT [PK_27] PRIMARY KEY CLUSTERED ([id] ASC),
- CONSTRAINT [FK_parts_partnum] FOREIGN KEY ([part_number])  REFERENCES [part_list]([part_number]) ON UPDATE NO ACTION ON DELETE NO ACTION,
- CONSTRAINT [FK_pl_added_by] FOREIGN KEY ([added_by])  REFERENCES [users]([id]) ON UPDATE NO ACTION,
- CONSTRAINT [FK_pl_asset_id] FOREIGN KEY ([location])  REFERENCES [assets]([id]) ON UPDATE CASCADE,
- CONSTRAINT [FK_pl_used_by] FOREIGN KEY ([used_by])  REFERENCES [users]([id]) ON UPDATE NO ACTION
+ CONSTRAINT [FK_parts_partnum] FOREIGN KEY ([part_id])  REFERENCES [part_list]([id]) ON UPDATE CASCADE ON DELETE NO ACTION,
+ CONSTRAINT [FK_pl_added_by] FOREIGN KEY ([added_by])  REFERENCES [users]([id]) ON UPDATE CASCADE ON DELETE NO ACTION,
+ CONSTRAINT [FK_pl_asset_id] FOREIGN KEY ([location])  REFERENCES [assets]([id]) ON UPDATE NO ACTION ON DELETE NO ACTION,
+ CONSTRAINT [FK_pl_used_by] FOREIGN KEY ([used_by])  REFERENCES [users]([id]) ON UPDATE NO ACTION ON DELETE NO ACTION
 );
 GO
 
@@ -50,9 +55,11 @@ CREATE NONCLUSTERED INDEX [FK_18] ON [part_list]
   [model_number] ASC
  )
 
+GO
+
 CREATE NONCLUSTERED INDEX [FK_30] ON [parts] 
  (
-  [part_number] ASC
+  [part_id] ASC
  )
 
 GO

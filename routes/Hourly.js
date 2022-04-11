@@ -93,7 +93,7 @@ Router.post('/user/new', async (req, res) => {
     let result = await pool.request().query(`INSERT INTO hourly_tracking (job_code, user_id, start_time, end_time, notes, hours, date, in_progress) VALUES ('${job_code}', '${uid}', '${startTime}', '${endTime}', ${notes ? `'${notes}'` : 'null'}, '${total_hours}', '${date}', '${in_progress ? '1' : '0'}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
-        return res.status(401).json({ message: 'Unsuccessful', error: result.error })
+        return res.status(500).json({ message: 'Unsuccessful', error: result.error })
     }
 
     // Return
