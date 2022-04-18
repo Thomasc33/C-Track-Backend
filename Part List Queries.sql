@@ -86,7 +86,7 @@ CREATE NONCLUSTERED INDEX [FK_40] ON [parts]
 GO
 
 alter table user_permissions
-add user_repair_log tinyint default 0 not null,
+add use_repair_log tinyint default 0 not null,
 	view_parts tinyint default 0 not null,
 	edit_parts tinyint default 0 not null,
 	view_part_types tinyint default 0 not null,

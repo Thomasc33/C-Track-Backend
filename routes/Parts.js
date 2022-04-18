@@ -244,6 +244,13 @@ Router.get('/inventory', async (req, res) => {
         .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (models.isErrored) return res.status(500).json({ message: 'Error', error: models.error })
 
+    let u_q = await pool.request().query(`SELECT id,name FROM users`)
+        .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (u_q.isErrored) return res.status(500).json({ message: 'Error', error: u_q.error })
+
+    let usernames = {}
+    for (let i of u_q) usernames[i.id] = i.name
+
     // Data Organization and additional queries
     let data = []
     for (let m of models) {
@@ -266,6 +273,8 @@ Router.get('/inventory', async (req, res) => {
             d.total_stock = inv.length ? inv.reduce((a, b) => b.location ? a : a++) : 0
         } else { d.total_parts = 0; d.total_stock = 0, d.inventory = [] }
 
+        for (let i in d.inventory) if (d.inventory[i].userd_by && usernames[d.inventory[i].userd_by]) d.inventory[i].userd_by = usernames[d.inventory[i].userd_by]
+
         // Check for low stock
         for (let ind in d.parts) if (d.parts[ind].minimum_stock) {
             let i = d.parts[ind]
@@ -287,11 +296,47 @@ Router.get('/inventory', async (req, res) => {
 
 })
 
-Router.get('/inventory/:model', async (req, res) => { })
-
 // Repair Log
 
+Router.get('/log/asset/:asset', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
+    // Get asset from route
+    const asset = req.params.asset
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query the DB
+    let model = await pool.request().query(`SELECT model_number FROM assets WHERE id = '${asset}'`)
+        .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (model.isErrored) return res.status(500).json({ message: 'Unable to get job codes', error: model.error })
+
+    if (!model.length) return res.status(400).json({ message: `Asset '${asset}' not found` })
+    model = model[0].model_number
+
+    let q = await pool.request().query(`SELECT * FROM part_list WHERE model_number = '${model}'`)
+        .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ message: 'Unable to get job codes', error: q.error })
+
+    // Return Data
+    return res.status(200).json(q)
+})
+
+Router.post('/log', async (req, res) => {
+//TODO: Implement this
+// Either add the change to db if only one option exists for the provided asset and repair type, or all potential parts
+// return {options: [], submited: bool}
+})
+
+Router.put('/log', async (req, res) => {
+//TODO: Implement this
+// this one will have a part id with it, add it to db
+})
 
 
 module.exports = Router
