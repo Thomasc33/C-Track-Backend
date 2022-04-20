@@ -362,6 +362,13 @@ Router.get('/get/:search', async (req, res) => {
         return res.status(400).json({ code: 400, message: 'Invalid UID or not found, Asset Tracking Query Error' })
     }
 
+    let u_q = await pool.request().query(`SELECT id,name FROM users`)
+        .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (u_q.isErrored) return res.status(500).json({ message: 'Error', error: u_q.error })
+
+    let usernames = {}
+    for (let i of u_q) usernames[i.id] = i.name
+
     // Organize Data
     let resu = []
     for (let i of asset_query.recordset) {
@@ -375,13 +382,25 @@ Router.get('/get/:search', async (req, res) => {
         if (!history_query.isErrored && history_query.recordset.length > 0) {
             let his = []
             for (let i of history_query.recordset) {
-                let name = await pool.request().query(`SELECT name FROM users WHERE id = '${i.user_id}'`).catch(er => { console.log(er); return { isErrored: true, error: er } })
-                if (name.isErrored) return res.status(500).json({ message: `Failed user name query for (${i.user_id})` })
-                if (name.recordset[0] && name.recordset[0].name) name = name.recordset[0].name
-                else name = `uid: ${i.user_id}`
+                let name = usernames[i.user_id] || `UID: ${i.user_id}`
                 his.push({ name, job_code: i.job_code, date: i.date, time: i.time, id: i.id, notes: i.notes })
             }
             r.history = his
+        }
+
+        // Repair History Query
+        let repair_query = await pool.request().query(`SELECT * FROM parts WHERE location = '${r.info.id}' ORDER BY used_on DESC`)
+            .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, er } })
+        if (!repair_query.isErrored && repair_query.length) {
+            let his = []
+            for (let i of repair_query) {
+                let name = usernames[i.used_by]
+                let part_info_query = await pool.request().query(`SELECT * FROM part_list WHERE id = '${i.part_id}'`)
+                    .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+                if (part_info_query.isErrored) continue
+                his.push({ tech: name, ...i, part_type: part_info_query[0].part_type, part_number: part_info_query[0].part_number })
+            }
+            r.repairs = his
         }
         resu.push(r)
     }
@@ -416,13 +435,24 @@ Router.get('/get/:search', async (req, res) => {
         if (!hq.isErrored && hq.recordset.length > 0) {
             let his = []
             for (let i of hq.recordset) {
-                let name = await pool.request().query(`SELECT name FROM users WHERE id = '${i.user_id}'`).catch(er => { console.log(er); return { isErrored: true, error: er } })
-                if (name.isErrored) return res.status(500).json({ message: `Failed user name query for (${i.user_id})` })
-                if (name.recordset[0] && name.recordset[0].name) name = name.recordset[0].name
-                else name = `uid: ${i.user_id}`
+                let name = usernames[i.user_id] || `UID: ${i.user_id}`
                 his.unshift({ name, job_code: i.job_code, date: i.date, id: i.id, time: i.time, notes: i.notes })
             }
             r.history = his
+
+            let repair_query = await pool.request().query(`SELECT * FROM parts WHERE location = '${r.info.id}' ORDER BY used_on DESC`)
+                .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, er } })
+            if (!repair_query.isErrored && repair_query.length) {
+                let rhis = []
+                for (let i of repair_query) {
+                    let name = usernames[i.used_by]
+                    let part_info_query = await pool.request().query(`SELECT * FROM part_list WHERE id = '${i.part_id}'`)
+                        .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
+                    if (part_info_query.isErrored) continue
+                    rhis.push({ tech: name, ...i, part_type: part_info_query[0].part_type, part_number: part_info_query[0].part_number })
+                }
+                r.repairs = rhis
+            }
         }
 
         resu.push(r)

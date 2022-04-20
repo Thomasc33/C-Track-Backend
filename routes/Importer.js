@@ -166,7 +166,53 @@ Router.post('/legal', async (req, res) => {
 })
 
 Router.post('/parts', async (req, res) => {
+    // Check for importer permissions
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (!isAdmin && !permissions.use_importer) return res.status(403).json({ error: 'Forbidden' })
 
+    // Get json data
+    const data = req.body
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get all models
+    let failedParts = []
+    const pl_query = await pool.request().query(`SELECT part_number,id FROM part_list`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (pl_query.isErrored) return res.status(500).json({ error: model_query.error })
+    const part_ids = new Set(Array.from(pl_query.recordset, (v, k) => { return v.part_number.toLowerCase() }))
+    const part_num_to_id = {}
+    for (let i of pl_query.recordset) part_num_to_id[i.part_number] = i.id
+
+    // Data validation
+    let validInserts = []
+    for (let i of data) {
+        // Check to see if data was provided
+        if (!i.id) continue
+
+        // Ensure asset exists
+        if (!part_ids.has(i.id.toLowerCase())) {
+            failedParts.push({ id: `${i.id}`, reason: `Part doesnt exist` }); continue;
+        }
+
+        // Add to valid inserts
+        validInserts.push(i)
+    }
+
+    if (!validInserts.length) return res.status(400).json({ error: 'No valid options found to import', failed: failedParts })
+
+    // Query
+    const query = await pool.request().query(`INSERT INTO parts (part_id, added_by, added_on) VALUES ${validInserts.map(m => `('${part_num_to_id[m.id]}', '${uid}', GETDATE())`).join(', ')}`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (query.isErrored) {
+        console.log(query.error)
+        return res.status(500).json({ error: query.error, failed: failedParts })
+    }
+
+    // Return
+    return res.status(200).json({ message: 'Success', failed: failedParts })
 })
 
 module.exports = Router

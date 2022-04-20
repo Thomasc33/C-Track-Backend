@@ -270,10 +270,13 @@ Router.get('/inventory', async (req, res) => {
 
             d.inventory = inv
             d.total_parts = inv.length
-            d.total_stock = inv.length ? inv.reduce((a, b) => b.location ? a : a++) : 0
+            d.total_stock = inv.length ? inv.filter(a => a.location).length : 0
         } else { d.total_parts = 0; d.total_stock = 0, d.inventory = [] }
 
-        for (let i in d.inventory) if (d.inventory[i].userd_by && usernames[d.inventory[i].userd_by]) d.inventory[i].userd_by = usernames[d.inventory[i].userd_by]
+        for (let i in d.inventory) {
+            if (d.inventory[i].used_by && usernames[d.inventory[i].used_by]) d.inventory[i].used_by = usernames[d.inventory[i].used_by]
+            if (d.inventory[i].added_by && usernames[d.inventory[i].added_by]) d.inventory[i].added_by = usernames[d.inventory[i].added_by]
+        }
 
         // Check for low stock
         for (let ind in d.parts) if (d.parts[ind].minimum_stock) {
@@ -328,15 +331,147 @@ Router.get('/log/asset/:asset', async (req, res) => {
 })
 
 Router.post('/log', async (req, res) => {
-//TODO: Implement this
-// Either add the change to db if only one option exists for the provided asset and repair type, or all potential parts
-// return {options: [], submited: bool}
+    //TODO: Implement this
+    // Either add the change to db if only one option exists for the provided asset and repair type, or all potential parts
+
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Get information from body
+    const { part, asset } = req.body
+    const date = req.body.date
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Validate data
+    let issues = []
+    if (!part) issues.push('No part')
+    if (!asset) issues.push('No asset')
+    if (issues.length) return res.status(400).json({ issues })
+
+    // Query DB
+    let model_q = await pool.request().query(`SELECT * FROM assets WHERE id = '${asset}'`)
+        .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
+    if (!model_q.length || model_q.isErrored) return res.status(400).json({ er: model_q.er, message: `Failed to find asset: ${asset}` })
+    let model = model_q[0].model_number
+
+    let p_ids = await pool.request().query(`SELECT * FROM part_list WHERE model_number = '${model}' AND part_type = '${part}'`)
+        .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
+    if (!p_ids.length || p_ids.isErrored) return res.status(400).json({ er: p_ids.er, message: `Failed to find parts under: ${model}` })
+
+    let o_q = await pool.request().query(`SELECT * FROM parts WHERE location IS NULL AND (${p_ids.map(m => `part_id = '${m.id}'`).join(' OR ')})`)
+        .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
+    if (!o_q.length || o_q.isErrored) return res.status(400).json({ er: o_q.er, message: `Failed to find inventory under:${p_ids.map(m => `\n${m.part_number}, ${m.id}, ${m.part_type}`)}` })
+
+    // If only one option, force select it
+    let submitted = o_q.length == 1
+    if (submitted) {
+        let sub_q = await pool.request().query(`UPDATE parts SET used_by = '${uid}', location = '${asset}', used_on = ${date ? `'${date}'` : 'GETDATE()'} WHERE id = '${o_q[0].id}'`)
+            .catch(er => { return { isErrored: true, er } })
+        if (sub_q.isErrored) return res.status(500).json({ er: sub_q.er })
+    }
+
+    // Supplemental Data
+    let part_id_to_part_num = {}
+    for (let i of p_ids) part_id_to_part_num[i.id] = i.part_number
+
+    // Return { options:[], submitted:bool, part_id_to_part_num: {} }
+    return res.status(200).json({ options: o_q, submitted, part_id_to_part_num })
 })
 
 Router.put('/log', async (req, res) => {
-//TODO: Implement this
-// this one will have a part id with it, add it to db
+    //TODO: Implement this
+    // this one will have a part id with it, add it to db
+
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Get information from body
+    const { part, asset } = req.body
+    const date = req.body.date
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Update part
+    let sub_q = await pool.request().query(`UPDATE parts SET used_by = '${uid}', location = '${asset}', used_on = ${date ? `'${date}'` : 'GETDATE()'} WHERE id = '${part.id}'`)
+        .catch(er => { return { isErrored: true, er } })
+    if (sub_q.isErrored) return res.status(400).json({ er: sub_q.er })
+
+    // return 200
+    return res.status(200).json({ message: 'ok' })
 })
 
+Router.get('/log/:date', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Get date from params
+    const date = req.params.date
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get data
+    let q = await pool.request().query(`SELECT * FROM parts WHERE used_by = '${uid}' AND used_on BETWEEN '${getDate(date)}' AND '${getDatePlusOneDay(date)}'`)
+        .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
+    if (q.isErrored) return res.status(500).json({ message: q.er })
+
+    let parts = new Set(), part_id_info = {}
+    for (let i of q) parts.add(i.part_id)
+    parts = [...parts]
+    if (parts.length) {
+        let sup_q = await pool.request().query(`SELECT * FROM part_list WHERE ${parts.map(m => `id = '${m}'`).join(' OR ')}`)
+            .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
+        if (sup_q.isErrored) return res.status(200).json({ data: q })
+        for (let i of sup_q) part_id_info[i.id] = { type: i.part_type, model: i.model_number, part_number: i.part_number }
+    }
+    return res.status(200).json({ data: q, part_id_info })
+})
+
+Router.delete('/log/:id', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Get date from params
+    const id = req.params.id
+    if (!id) return res.status(400).json({ message: 'Missing ID' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Delete query
+    let q = await pool.request().query(`UPDATE parts SET used_by = NULL, location = NULL, used_on = NULL WHERE id = '${id}'${isAdmin ? '' : ` AND used_by = '${uid}'`}`)
+        .catch(er => { return { isErrored: true, er } })
+    if (q.isErrored) return res.status(500).json({ message: q.er })
+
+    if (!q.rowsAffected || !q.rowsAffected.length || !q.rowsAffected[0]) return res.status(400).json({ message: 'No changes available' })
+
+    return res.status(200).json({ message: 'ok' })
+})
 
 module.exports = Router
+
+function getDate(date) {
+    let d = new Date(date)
+    return d.toISOString().split('T')[0]
+}
+
+function getDatePlusOneDay(date) {
+    let d = new Date(date)
+    d.setDate(d.getDate() + 1)
+    return d.toISOString().split('T')[0]
+}
