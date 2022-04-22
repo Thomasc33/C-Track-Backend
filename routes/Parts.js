@@ -176,7 +176,7 @@ Router.put('/mgmt/part/create', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Data Validation
-    const { part, type, model, image } = req.body
+    const { part, type, model, image, m_stock } = req.body
 
     let issues = []
     if (!part) issues.push('Missing Part Number')
@@ -186,7 +186,7 @@ Router.put('/mgmt/part/create', async (req, res) => {
     if (issues.length) return res.status(400).json({ message: issues.join('\n') })
 
     // Query the DB
-    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,model_number,image) VALUES ('${part}','${type}','${model}','${image ? image : 'null'}')`)
+    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,model_number,image,minimum_stock) VALUES ('${part}','${type}','${model}','${image ? image : 'null'}',${m_stock})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
@@ -283,7 +283,7 @@ Router.get('/inventory', async (req, res) => {
             let i = d.parts[ind]
             let stock = await pool.request().query(`SELECT * FROM parts WHERE part_id = ${i.id} AND location IS NULL`)
                 .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
-            if (inv.isErrored) return res.status(500).json({ message: 'Error', error: inv.error })
+            if (stock.isErrored) return res.status(500).json({ message: 'Error', error: stock.error })
 
             if (stock.length < i.minimum_stock) {
                 d.parts[i].low_stock = true
