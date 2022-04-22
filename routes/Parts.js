@@ -270,9 +270,10 @@ Router.get('/inventory', async (req, res) => {
 
             d.inventory = inv
             d.total_parts = inv.length
-            d.total_stock = inv.length ? inv.filter(a => a.location).length : 0
+            d.total_stock = inv.filter(a => !a.location).length
         } else { d.total_parts = 0; d.total_stock = 0, d.inventory = [] }
 
+        // Convert UID to name
         for (let i in d.inventory) {
             if (d.inventory[i].used_by && usernames[d.inventory[i].used_by]) d.inventory[i].used_by = usernames[d.inventory[i].used_by]
             if (d.inventory[i].added_by && usernames[d.inventory[i].added_by]) d.inventory[i].added_by = usernames[d.inventory[i].added_by]
@@ -286,7 +287,7 @@ Router.get('/inventory', async (req, res) => {
             if (stock.isErrored) return res.status(500).json({ message: 'Error', error: stock.error })
 
             if (stock.length < i.minimum_stock) {
-                d.parts[i].low_stock = true
+                d.parts[ind].low_stock = true
                 d.low_stock = true
             }
         }
