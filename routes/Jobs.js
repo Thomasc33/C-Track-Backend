@@ -156,7 +156,7 @@ Router.post('/new', async (req, res) => {
         errored = true
         issues.push('Job Name Not Provided')
     }
-    if (!price || (typeof (price) == 'string' && price.replace(/\d/gi, '') !== '')) {
+    if (!price || (typeof (price) == 'string' && price.replace(/.\d/gi, '') !== '')) {
         errored = true
         issues.push('Invalid Price or Price not type Int')
     }
@@ -203,7 +203,7 @@ Router.post('/edit', async (req, res) => {
                 errors.push('isAsset value invalid')
             break;
         case 'price':
-            if (isNaN(parseInt(value))) errors.push('Price value was NaN')
+            if (isNaN(parseFloat(value))) errors.push('Price value was NaN')
             break;
         case 'job_name':
             //no further validation needed
@@ -223,7 +223,6 @@ Router.post('/edit', async (req, res) => {
             break;
     }
     if (errors.length > 0) return res.status(400).json({ errors })
-
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
