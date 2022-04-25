@@ -194,11 +194,42 @@ Router.get('/get/:search', async (req, res) => {
 })
 
 Router.get('/all', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
     // Query the DB
     let model_query = await pool.request().query(`SELECT * FROM models`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (model_query.isErrored) {
+        // Check for specific errors
+
+        // If no errors above, return generic Invalid UID Error
+        return res.status(400).json({ message: 'Unable to get models' })
+    }
+
+    // Organize Data
+    let models = [...model_query.recordset]
+
+    // Return Data
+    return res.status(200).json({ models })
+})
+
+Router.get('/all/numbers', async (req, res) => {
+    // Get UID from header
+    let uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Query the DB
+    let model_query = await pool.request().query(`SELECT model_number FROM models`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (model_query.isErrored) {
         // Check for specific errors
