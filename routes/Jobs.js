@@ -164,7 +164,7 @@ Router.post('/new', async (req, res) => {
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || 'null'}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments}')`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || ''}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments || ''}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
@@ -172,7 +172,16 @@ Router.post('/new', async (req, res) => {
         // If no errors above, return generic Invalid UID Error
         return res.status(500).json({ message: 'Failed to insert' })
     }
-    return res.status(200).json({ message: 'success' })
+    res.status(200).json({ message: 'success' })
+
+    // Add to job history
+    let id_q = await pool.request().query(`SELECT id FROM jobs WHERE job_code = '${job_code}' AND job_name = '${job_name}' AND price = ${price}`)
+        .then(m => m.recordset).catch(er => { return { er, isErrored: true } })
+    if (id_q.isErrored || !id_q.length) return console.log(`Error finding id of new job code, ${id_q.er}`)
+    let id = id_q[0].id
+    let his_q = await pool.request().query(`INSERT INTO job_price_history (job_id, price, [from]) VALUES ('${id}',${price}, GETDATE())`)
+        .catch(er => { return { isErrored: true, er } })
+    if (his_q.isErrored) return console.log(`Error adding to price history (new job): ${his_q.er}`)
 })
 
 Router.post('/edit', async (req, res) => {
@@ -184,6 +193,7 @@ Router.post('/edit', async (req, res) => {
 
     // Get Data
     const { id, change, value } = req.body
+    let isPrice = change == 'price'
 
     // Data Validation
     let errors = []
@@ -235,7 +245,16 @@ Router.post('/edit', async (req, res) => {
         // If no errors above, return generic Invalid UID Error
         return res.status(400).json({ message: 'Failed to edit' })
     }
-    return res.status(200).json({ message: 'success' })
+    res.status(200).json({ message: 'success' })
+
+    if (isPrice) {
+        let history_q = await pool.request().query(`UPDATE job_price_history SET [to] = GETDATE() WHERE job_id = '${id}'`)
+            .catch(er => { return { isErrored: true, er } })
+        if (history_q.isErrored) return console.log(`Error updating price history: ${history_q.er}`)
+        history_q = await pool.request().query(`INSERT INTO job_price_history (job_id, price, [from]) VALUES ('${id}',${value}, GETDATE())`)
+            .catch(er => { return { isErrored: true, er } })
+        if (history_q.isErrored) return console.log(`Error adding to price history: ${history_q.er}`)
+    }
 })
 
 module.exports = Router
