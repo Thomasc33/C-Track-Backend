@@ -39,7 +39,8 @@ Router.get('/users/daily/:date', async (req, res) => {
     if (jobs_query.isErrored) return res.status(500).json({ message: 'failed Job query' })
     const hourly_jobs = {}
     const ppd_jobs = {}
-    for (let i of jobs_query.recordset) if (i.is_hourly) hourly_jobs[i.id] = i.price; else ppd_jobs[i.id] = i.price
+    const job_prices = await getJobPrices(null, date)
+    for (let i of jobs_query.recordset) if (i.is_hourly) hourly_jobs[i.id] = job_prices[i.id]; else ppd_jobs[i.id] = job_prices[i.id]
 
     // Get asset and hourly history for the date
     const dailyDollars = {}
@@ -110,12 +111,14 @@ Router.get('/user/:uid/:date', async (req, res) => {
         .catch(er => { return { isErrored: true, error: er } })
     if (hourly_tracking.isErrored) return res.status(500).json({ code: 500, message: 'Failed to get job codes' })
 
+    let job_prices = await getJobPrices(null, date)
+
     // Format Job Codes
     let hourly_jobs = {}, ppd_jobs = {}
     job_codes.recordset.forEach(job => {
         if (job.status_only) return
-        if (job.is_hourly) hourly_jobs[job.id] = { job_name: job.job_name, job_code: job.job_code, price: job.price }
-        else ppd_jobs[job.id] = { job_name: job.job_name, job_code: job.job_code, price: job.price }
+        if (job.is_hourly) hourly_jobs[job.id] = { job_name: job.job_name, job_code: job.job_code, price: job_prices[job.id] }
+        else ppd_jobs[job.id] = { job_name: job.job_name, job_code: job.job_code, price: job_prices[job.id] }
     })
 
     // Put data where data should be
@@ -163,9 +166,10 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     let jobs_query = await pool.request().query(`SELECT * FROM jobs`)
         .catch(er => { return { isErrored: true, error: er } })
     if (jobs_query.isErrored) return res.status(500).json({ message: 'failed Job query' })
-    const hourly_jobs = {}
-    const ppd_jobs = {}
-    for (let i of jobs_query.recordset) if (i.is_hourly) hourly_jobs[i.id] = parseFloat(i.price); else ppd_jobs[i.id] = parseFloat(i.price)
+    // const hourly_jobs = {}
+    // const ppd_jobs = {}
+    // for (let i of jobs_query.recordset) if (i.is_hourly) hourly_jobs[i.id] = parseFloat(i.price); else ppd_jobs[i.id] = parseFloat(i.price)
+    let job_prices = await getJobPrices()
 
     // Get asset and hourly history for the date
     let asset_query = await pool.request().query(`SELECT job_code, date FROM asset_tracking WHERE user_id = '${uid}' AND date BETWEEN '${from}' AND '${to}'`)
@@ -180,12 +184,14 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
 
     for (let i of asset_query.recordset) {
         let d = i.date.toISOString().split('T')[0]
-        if (data[d]) data[d] += ppd_jobs[i.job_code]; else data[d] = ppd_jobs[i.job_code]
+        let price = getPriceFromDate(job_prices, i.date, i.job_code)
+        if (data[d]) data[d] += price; else data[d] = price
     }
 
     for (let i of hourly_query.recordset) {
         let d = i.date.toISOString().split('T')[0]
-        if (data[d]) data[d] += parseFloat(i.hours) * hourly_jobs[i.job_code]; else data[d] = parseFloat(i.hours) * hourly_jobs[i.job_code]
+        let price = getPriceFromDate(job_prices, i.date, i.job_code)
+        if (data[d]) data[d] += parseFloat(i.hours) * price; else data[d] = parseFloat(i.hours) * price
     }
 
     return res.status(200).json(data)
@@ -340,10 +346,10 @@ Router.post('/hourlysummary', async (req, res) => {
 
     // Get Job Code Names
     let job_codes = {}
-    let job_code_query = await pool.request().query(`SELECT id,job_code,price FROM jobs WHERE is_hourly = 1`)
+    let job_code_query = await pool.request().query(`SELECT id,job_code FROM jobs WHERE is_hourly = 1`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
-    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price }
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code }
 
     let data = [[{ value: 'User' }, { value: 'Job' }, { value: 'Date' }, { value: 'Start' }, { value: 'End' }, { value: 'Hours' }, { value: 'Notes' }]]
 
@@ -365,6 +371,7 @@ Router.post('/hourlysummary', async (req, res) => {
 })
 
 Router.get('/jobusage/:type', async (req, res) => {
+    //TODO: Price History
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
@@ -401,10 +408,11 @@ Router.get('/jobusage/:type', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get job codes
-    let jq = await pool.request().query(`SELECT id, job_code,is_hourly,price FROM jobs`)
+    let jq = await pool.request().query(`SELECT id, job_code,is_hourly FROM jobs`)
         .then(d => d.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (jq && jq.isErrored) return res.status(500).json({ message: 'Error fetching asset tracking records' })
+    let prices = await getJobPrices()
 
     const aq = `SELECT count(*) AS total, ${[...jq].filter(m => !m.is_hourly).map(m => months.map(d => `SUM(CASE WHEN [job_code] = '${m.id}' and MONTH([date]) = '${d.month}' and YEAR([date]) = '${d.year}' THEN 1 ELSE 0 END) AS [${m.job_code} ${d.month}-${d.year}]`).join(', ')).join(', ')} FROM asset_tracking`
     const hq = `SELECT count(*) AS total, ${[...jq].filter(m => m.is_hourly).map(m => months.map(d => `SUM(case when [job_code] = '${m.id}' and month([date]) = ${d.month} and year([date]) = ${d.year} then 1 else 0 end) as [${m.job_code} ${d.month}-${d.year}]`).join(', ')).join(', ')} FROM hourly_tracking`
@@ -460,19 +468,20 @@ Router.get('/jobusage/:type', async (req, res) => {
         data[3].push({ value: '', leftBorderStyle: 'thick', backgroundColor: reportTunables.rowAlternatingColor }, { value: 0, rightBorderStyle: 'thick', backgroundColor: reportTunables.rowAlternatingColor })
         for (let j in jq) {
             let m = jq[j]
+            let p = getPriceFromDate(prices, `${i.month}-01-${i.year}`, j)
             if (m.is_hourly) {
                 data[parseInt(j) + 4].push({ value: hrly_data[m.job_code][`${i.month}-${i.year}`], align: 'left', leftBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left', rightBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
+                    { value: `$${hrly_data[m.job_code][`${i.month}-${i.year}`] * p}`, align: 'left', rightBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
                 data[2][data[1].length - 2].value += hrly_data[m.job_code][`${i.month}-${i.year}`]
-                data[2][data[1].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
-                data[3][data[3].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[2][data[1].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * p
+                data[3][data[3].length - 1].value += hrly_data[m.job_code][`${i.month}-${i.year}`] * p
             }
             else {
                 data[parseInt(j) + 4].push({ value: ppd_data[m.job_code][`${i.month}-${i.year}`], align: 'left', leftBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined },
-                    { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price}`, align: 'left', rightBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
+                    { value: `$${ppd_data[m.job_code][`${i.month}-${i.year}`] * p}`, align: 'left', rightBorderStyle: 'thick', backgroundColor: ind % 2 == 1 ? reportTunables.rowAlternatingColor : undefined })
                 data[1][data[2].length - 2].value += ppd_data[m.job_code][`${i.month}-${i.year}`]
-                data[1][data[2].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
-                data[3][data[3].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * m.price
+                data[1][data[2].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * p
+                data[3][data[3].length - 1].value += ppd_data[m.job_code][`${i.month}-${i.year}`] * p
             }
             ind++
         }
@@ -489,6 +498,7 @@ Router.get('/jobusage/:type', async (req, res) => {
 })
 
 Router.get('/excel', async (req, res) => {
+    //TODO: Price History
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
@@ -541,10 +551,11 @@ Router.get('/excel', async (req, res) => {
 
     // Get Job Code Names
     let job_codes = {}
-    let job_code_query = await pool.request().query(`SELECT id,job_code,price,hourly_goal,requires_asset FROM jobs`)
+    let job_code_query = await pool.request().query(`SELECT id,job_code,hourly_goal,requires_asset FROM jobs`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
-    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, price: i.price, hourly_goal: i.hourly_goal, requires_asset: i.requires_asset }
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, hourly_goal: i.hourly_goal, requires_asset: i.requires_asset }
+    let prices = await getJobPrices()
 
     // Get Tsheets Data
     const tsheets_data = await getTsheetsData(job_codes, start, end) //applicableUserString
@@ -602,13 +613,12 @@ Router.get('/excel', async (req, res) => {
 
         let ind = 0
         assetJobCodes.forEach(jc => {
-            let job_price = 0, ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0, hrly_revenue = 0, snipe_count = 0, unique = [], dailyRevenue = 0, days = 0
+            let job_price = new Set(), ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0.0, hrly_revenue = 0, snipe_count = 0, unique = [], dailyRevenue = 0, days = 0
 
             // Complimentary job code
             let complimentaryJC
             if (JobCodePairsSet.has(jc)) for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
 
-            job_price = job_codes[jc].price
             goal = job_codes[jc].hourly_goal || '-'
 
             for (let date of dates) {
@@ -618,9 +628,13 @@ Router.get('/excel', async (req, res) => {
                     tsheetsVisited.add(i.id)
                 }
 
+                let p = getPriceFromDate(prices, date, jc)
+                job_price.add(p)
+
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
                 count += assets.length
+                revenue += parseFloat(assets.length) * p
 
                 if (snipeData && snipeData[date] && snipeData[date][id] && (snipeData[date][id][jc] || snipeData[date][id][parseInt(jc)])) {
                     snipe_count += snipeData[date][id][jc] ? snipeData[date][id][jc].length : snipeData[date][id][parseInt(jc)].length;
@@ -634,7 +648,6 @@ Router.get('/excel', async (req, res) => {
                 if (range) if (![0, 6].includes(new Date(date).getDay()) && assets.length) days++
             }
 
-            revenue = parseFloat(job_price) * parseFloat(count)
             totalrevenue += revenue
             totalhours += ts_hours
 
@@ -651,72 +664,38 @@ Router.get('/excel', async (req, res) => {
             // discrepancy check
             if (job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count) || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
 
-            d.push([
-                {
-                    value: job_codes[jc].name,
-                    rightBorderStyle: 'thin',
-
-                },
-                {
-                    value: job_price,
-                    rightBorderStyle: 'thin',
-
-                },
-                {
-                    value: ts_hours,
-                    rightBorderStyle: 'thin',
-
-                },
-                {
-                    value: count,
-                    rightBorderStyle: 'thin',
-
-                },
-                {
-                    value: goal,
-                    rightBorderStyle: 'thin',
-
-                },
-                {
-                    value: hrly_count,
-                    rightBorderStyle: 'thin',
-                    backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor : hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor : reportTunables.goalColor
-                },
-                {
-                    value: revenue,
-                    rightBorderStyle: 'thin',
-
-                },
-                {
-                    value: hrly_revenue,
-                    rightBorderStyle: 'thin',
-                    backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
-                }])
-            if (range) d[d.length - 1].push({
-                value: revenue / days,
-                rightBorderStyle: 'thin',
-
-            })
+            d.push([{ value: job_codes[jc].name, rightBorderStyle: 'thin', },
+            { value: Array.from(job_price).join(','), rightBorderStyle: 'thin', },
+            { value: ts_hours, rightBorderStyle: 'thin', },
+            { value: count, rightBorderStyle: 'thin', },
+            { value: goal, rightBorderStyle: 'thin', },
+            { value: hrly_count, rightBorderStyle: 'thin', backgroundColor: hrly_count >= reportTunables.overPercent * goal ? reportTunables.overColor : hrly_count <= reportTunables.underPercent * goal ? reportTunables.underColor : reportTunables.goalColor },
+            { value: revenue, rightBorderStyle: 'thin', },
+            { value: hrly_revenue, rightBorderStyle: 'thin', backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor }])
+            if (range) d[d.length - 1].push({ value: revenue / days, rightBorderStyle: 'thin', })
             d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
             ind++
         })
 
         hourlyJobCodes.forEach(jc => {
             //count totals
-            let job_price = job_codes[jc].price, tot_ts_hours = 0, tot_count = 0, revenue = 0, hrly_revenue = 0, days = 0, dailyRevenue = 0
+            let job_price = new Set(), tot_ts_hours = 0, tot_count = 0, revenue = 0, hrly_revenue = 0, days = 0, dailyRevenue = 0
 
             for (let date of dates) {
                 let ts_hours = 0, ts_count = 0, count = 0
+
+                let p = getPriceFromDate(prices, date, jc)
+                job_price.add(p)
 
                 if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
 
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
-                revenue += ts_hours ? parseFloat(job_codes[jc].price) * parseFloat(ts_hours) : parseFloat(job_codes[jc].price) * parseFloat(count)
+                revenue += ts_hours ? parseFloat(p) * parseFloat(ts_hours) : parseFloat(p) * parseFloat(count)
                 totalrevenue += revenue
                 totalhours += ts_hours ? ts_hours : count
 
-                hrly_revenue = job_price
+                hrly_revenue = p
 
                 if (JobCodePairsSet.has(jc)) {
                     let complimentaryJC
@@ -724,7 +703,7 @@ Router.get('/excel', async (req, res) => {
                     if (complimentaryJC) for (let i of d) {
                         if (i.length < 6) continue
                         if (job_codes[`${complimentaryJC}`]) if (i[0].value == job_codes[jc].name && i[0].value == job_codes[`${complimentaryJC}`].name) {
-                            if (parseFloat(i[1].value) < parseFloat(job_price)) i[1].value = job_price
+                            if (parseFloat(i[1].value) < parseFloat(p)) i[1].value = p
                             if (ts_hours) i[2].value = ts_hours
                             else ts_hours += i[2].value
                             if (ts_hours != count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
@@ -759,7 +738,7 @@ Router.get('/excel', async (req, res) => {
 
             d.push([
                 { value: job_codes[jc].name, rightBorderStyle: 'thin', },
-                { value: job_price, rightBorderStyle: 'thin', },
+                { value: Array.from(job_price).join(','), rightBorderStyle: 'thin', },
                 { value: tot_ts_hours || tot_count, rightBorderStyle: 'thin', },
                 { value: '-', rightBorderStyle: 'thin', },
                 { value: '-', rightBorderStyle: 'thin', },
@@ -818,8 +797,8 @@ Router.get('/excel', async (req, res) => {
             for (let i in tsheets_data) if (tsheets_data[i][id]) for (let j of tsheets_data[i][id].timesheets) fiveDayHours += j.hours
 
             // Five day revenue counter
-            five_day_asset_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) })
-            five_day_hourly_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += parseFloat(job_codes[row.job_code].price) * parseFloat(row.hours) })
+            five_day_asset_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += getPriceFromDate(prices, date, row.job_code) })
+            five_day_hourly_query.forEach(row => { if (row.user_id == id) fiveDayRevenue += getPriceFromDate(prices, date, row.job_code) * parseFloat(row.hours) })
         }
 
         // Totals section
@@ -948,6 +927,31 @@ Router.get('/excel', async (req, res) => {
 
 
 module.exports = Router
+
+
+const getJobPrices = async (job_code = null, date = null) => {
+    let pool = await sql.connect(config)
+    let res = await pool.request().query(`SELECT * FROM job_price_history${job_code ? ` WHERE job_code = ${job_code}` : ''}`)
+    if (!res.rowsAffected.length || res.rowsAffected[0] == 0) return {}
+    let job_prices = {}
+    if (date) for (let j of res.recordset) {
+        if (!j.to) job_prices[j.job_id] = j.price
+        else {
+            let from = new Date(j.from), to = new Date(j.to), d = new Date()
+            if (from <= d < to) job_prices[j.job_id] = j.price
+        }
+    }
+    else for (let j of res.recordset) job_prices[j.job_id] = { price: j.price, from: new Date(j.from), to: j.to ? new Date(j.to) : new Date(), active: !j.to }
+    return job_prices
+}
+
+const getPriceFromDate = (prices, date, job) => {
+    // console.log(prices, date, job)
+    let d = new Date(date)
+    for (let i in prices) if (i == job && (prices[i].active || new Date(prices[i].from) <= d < new Date(prices[i].to))) return parseFloat(prices[i].price)
+    console.log('Couldnt find price for ', job)
+    return 0.0
+}
 
 function getDate(date) {
     date = new Date(date)
