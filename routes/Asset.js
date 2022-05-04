@@ -73,10 +73,10 @@ Router.post('/user/new', async (req, res) => {
         if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
         uid = data.uid
     }
-    
-    const commentArray = multiple.count ? Array(multiple.count).fill('') : [notes]
+
+    const commentArray = multiple && multiple.count ? Array(multiple.count).fill('') : [notes]
     let ti = 0
-    for (let key in multiple.split) for (let _ in Array(multiple.split[key]).fill(0)) { commentArray[ti] = key; ti++ }
+    if (multiple && multiple.count && multiple.split) for (let key in multiple.split) for (let _ in Array(multiple.split[key]).fill(0)) { commentArray[ti] = key; ti++ }
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
