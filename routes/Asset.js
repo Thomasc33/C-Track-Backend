@@ -66,13 +66,17 @@ Router.post('/user/new', async (req, res) => {
 
     // Get Params
     const data = req.body;
-    let { date, job_code, asset_id, notes } = data
+    let { date, job_code, asset_id, notes, multiple } = data
 
     // Check if editing others
     if (data.uid) {
         if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
         uid = data.uid
     }
+    
+    const commentArray = multiple.count ? Array(multiple.count).fill('') : [notes]
+    let ti = 0
+    for (let key in multiple.split) for (let _ in Array(multiple.split[key]).fill(0)) { commentArray[ti] = key; ti++ }
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -113,7 +117,7 @@ Router.post('/user/new', async (req, res) => {
     // if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(asset_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
 
     // Send to DB
-    let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ('${uid}', '${asset_id}', '${job_code}', '${date}', ${notes ? `'${notes}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`)
+    let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ${commentArray.map(m => `('${uid}', '${asset_id}', '${job_code}', '${date}', ${m ? `'${m}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`).join(', ')}`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })

@@ -13,7 +13,8 @@ const changeToColumn = {
     isAsset: 'requires_asset',
     hourly_goal: 'hourly_goal',
     statusOnly: 'status_only',
-    restricted_comments: 'restricted_comments'
+    restricted_comments: 'restricted_comments',
+    promptCount: 'prompt_count'
 }
 
 Router.get('/all', async (req, res) => {
@@ -143,7 +144,7 @@ Router.post('/new', async (req, res) => {
     if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
     // Get Data
-    const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal, statusOnly, restricted_comments } = req.body
+    const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal, statusOnly, restricted_comments, promptCount } = req.body
 
     // Data Validation
     let errored = false
@@ -211,6 +212,10 @@ Router.post('/edit', async (req, res) => {
         case 'isAsset':
             if (!['true', 'false'].includes(value.toLowerCase()))
                 errors.push('isAsset value invalid')
+            break;
+        case 'promptCount':
+            if (!['true', 'false'].includes(value.toLowerCase()))
+                errors.push('promptCount value invalid')
             break;
         case 'price':
             if (isNaN(parseFloat(value))) errors.push('Price value was NaN')
