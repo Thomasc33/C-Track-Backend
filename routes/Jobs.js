@@ -165,7 +165,7 @@ Router.post('/new', async (req, res) => {
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || ''}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments || ''}')`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments, prompt_count) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || ''}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments || ''}', '${promptCount ? '1' : '0'}')`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
@@ -242,7 +242,7 @@ Router.post('/edit', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' || change == 'isAsset' || change == 'statusOnly' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly or isAsset or statusOnly
+    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = '${change == 'isHourly' || change == 'isAsset' || change == 'statusOnly' || change == 'promptCount' ? value.toLowerCase() == 'true' ? '1' : '0' : value}' WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly or isAsset or statusOnly
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
