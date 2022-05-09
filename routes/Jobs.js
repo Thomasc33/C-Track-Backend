@@ -22,7 +22,7 @@ Router.get('/all', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Query the DB
-    let asset_tracking = await pool.request().query(`SELECT * FROM jobs WHERE status_only IS NULL OR status_only = 0`)
+    let asset_tracking = await pool.request().query(`SELECT * FROM jobs WHERE status_only IS NULL OR status_only = 0 ORDER BY is_hourly, requires_asset, job_code DESC`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
         // Check for specific errors
@@ -52,7 +52,7 @@ Router.get('/all/:type', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Query the DB
-    let asset_tracking = await pool.request().query(`SELECT * FROM jobs WHERE (status_only IS NULL OR status_only = 0) AND is_hourly = ${type == 'hrly' ? '1' : '0'}`)
+    let asset_tracking = await pool.request().query(`SELECT * FROM jobs WHERE (status_only IS NULL OR status_only = 0) AND is_hourly = ${type == 'hrly' ? '1' : '0'} ORDER BY is_hourly, requires_asset, job_code DESC`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
         // Check for specific errors
@@ -114,7 +114,7 @@ Router.get('/full', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Query the DB
-    let asset_tracking = await pool.request().query(`SELECT * FROM jobs`)
+    let asset_tracking = await pool.request().query(`SELECT * FROM jobs ORDER BY is_hourly, requires_asset, job_code DESC`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
         // Check for specific errors
