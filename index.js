@@ -7,6 +7,8 @@ const sql = require('mssql')
 const cors = require('cors')
 const rateLimit = require('express-rate-limit')
 const tokenParsing = require('./lib/tokenParsing')
+const cron = require('cron')
+const discrepancies = require('./lib/discrepencyChecks')
 
 //Globals
 const app = express()
@@ -127,7 +129,7 @@ app.use('/a/user', require('./routes/User'))
 app.use('/a/hourly', require('./routes/Hourly'))
 app.use('/a/importer', require('./routes/Importer'))
 app.use('/a/model', require('./routes/Model'))
-app.use('/a/reports', require('./routes/Reports'))
+app.use('/a/reports', require('./routes/Reports').Router)
 app.use('/a/oauth', require('./routes/OAuth'))
 app.use('/a/parts', require('./routes/Parts'))
 
@@ -136,3 +138,6 @@ app.use('/a/parts', require('./routes/Parts'))
 // Will switch to HTTPS for prod
 const httpServer = http.createServer(app)
 httpServer.listen(require('./settings.json').port)
+
+// Setup CRON Tasks
+const discrepency_cron = new cron.CronJob('0 45 11,16 * * 1-5', discrepancies.check)

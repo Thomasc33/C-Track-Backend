@@ -498,7 +498,6 @@ Router.get('/jobusage/:type', async (req, res) => {
 })
 
 Router.get('/excel', async (req, res) => {
-    //TODO: Price History
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
@@ -925,10 +924,6 @@ Router.get('/excel', async (req, res) => {
     return res.status(200).json({ data, columns })
 })
 
-
-module.exports = Router
-
-
 const getJobPrices = async (job_code = null, date = null) => {
     let pool = await sql.connect(config)
     let res = await pool.request().query(`SELECT * FROM job_price_history${job_code ? ` WHERE job_code = ${job_code}` : ''}`)
@@ -1082,6 +1077,8 @@ function getSnipeData(start) {
 }
 
 const round = (x, n) => Number(parseFloat(Math.round(x * Math.pow(10, n)) / Math.pow(10, n)).toFixed(n));
+
+module.exports = { Router, getTsheetsData, getSnipeData }
 
 /** Code to get all the job codes from snipe and match them to the db
         let d = await axios.get(`${snipeAPILink}/statuslabels`, { headers: { Authorization: SnipeBearer } }).then(d => d.data)
