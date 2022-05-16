@@ -61,8 +61,21 @@ app.use((req, res, next) => {
     next()
 })
 
+const ignoreLogURLS = [
+    '/a/favorites/asset',
+    '/a/user',
+    '/a/all',
+    '/a/all/asset',
+    '/a/permissions',
+    '/a/favorites/hrly',
+    '/a/all/hrly',
+    '/a/catalog',
+    '/a/user/notifications'
+]
+
 // Request Logging
 app.use((req, res, next) => {
+    if (ignoreLogURLS.includes(req.url)) return next()
     let d = new Date();
     let formatted_date = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
     let log = `[${formatted_date}] ${req.method}:${req.url} ${res.statusCode}`;
@@ -74,16 +87,6 @@ app.use((req, res, next) => {
 app.use(async (req, res, next) => {
     if (!req.headers.authorization) return res.status(403).json('Missing authorization header')
     next()
-    const ignoreLogURLS = [
-        '/favorites/asset',
-        '/user',
-        '/all',
-        '/all/asset',
-        '/permissions',
-        '/favorites/hrly',
-        '/all/hrly',
-        '/catalog'
-    ]
     if (ignoreLogURLS.includes(req.url)) return
 
     // Get UID
