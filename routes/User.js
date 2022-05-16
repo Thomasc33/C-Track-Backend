@@ -273,4 +273,90 @@ Router.post('/pref/jobs/favorites', async (req, res) => {
     return res.status(200).json({ message: 'ok' })
 })
 
+Router.get('/notifications', async (req, res) => {
+    // Check token and permissions
+    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { console.log(er); return { uid: { errored: true, er } } })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //Query
+    let q = await pool.request().query(`SELECT * FROM notifications WHERE user_id = '${uid}'`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ error: q.error })
+
+    // Organize Data
+    let read = [], unread = []
+    for (let i of q.recordset) if (i.read) read.push(i); else unread.push(i)
+
+    return res.status(200).json({ unread, read })
+})
+
+Router.post('/notification/archive', async (req, res) => {
+    // Check token and permissions
+    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { console.log(er); return { uid: { errored: true, er } } })
+
+    // Get ID from header
+    const { id } = req.body
+
+    // Validate header
+    if (!id || !typeof id == 'string' || isNaN(parseInt(id))) return res.status(400).json({ message: 'missing/invalid notification id:'.concat(id) })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //Query
+    let q = await pool.request().query(`UPDATE notifications SET archived = 1 WHERE id = '${id}' AND user_id = '${uid}'`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ error: q.error })
+
+    return res.status(200).json({ message: 'ok' })
+})
+
+Router.post('/notification/important', async (req, res) => {
+    // Check token and permissions
+    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { console.log(er); return { uid: { errored: true, er } } })
+
+    // Get ID from header
+    const { id } = req.body
+
+    // Validate header
+    if (!id || !typeof id == 'string' || isNaN(parseInt(id))) return res.status(400).json({ message: 'missing/invalid notification id:'.concat(id) })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //Query
+    let q = await pool.request().query(`UPDATE notifications SET important = NOT important WHERE id = '${id}' AND user_id = '${uid}'`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ error: q.error })
+
+    return res.status(200).json({ message: 'ok' })
+})
+
+Router.post('/notification/read', async (req, res) => {
+    // Check token and permissions
+    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { console.log(er); return { uid: { errored: true, er } } })
+
+    // Get ID from header
+    const { ids } = req.body
+
+    // Validate header
+    if (!ids || !ids.length) return res.status(400).json({ message: 'missing/invalid notification ids:'.concat(ids.join(', ')) })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //Query
+    let q = await pool.request().query(`UPDATE notifications SET read = 0 WHERE (${ids.map(id => `id = ${id}`).join(' OR ')}) AND user_id = '${uid}'`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ error: q.error })
+
+    return res.status(200).json({ message: 'ok' })
+})
+
 module.exports = Router
