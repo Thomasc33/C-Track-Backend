@@ -275,14 +275,14 @@ Router.post('/pref/jobs/favorites', async (req, res) => {
 
 Router.get('/notifications', async (req, res) => {
     // Check token and permissions
-    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+    const uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { console.log(er); return { uid: { errored: true, er } } })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
     //Query
-    let q = await pool.request().query(`SELECT * FROM notifications WHERE user_id = '${uid}'`)
+    let q = await pool.request().query(`SELECT * FROM notifications WHERE user_id = '${uid}' AND archived = '0'`)
         .catch(er => { return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ error: q.error })
 
@@ -295,14 +295,14 @@ Router.get('/notifications', async (req, res) => {
 
 Router.post('/notification/archive', async (req, res) => {
     // Check token and permissions
-    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+    const uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { console.log(er); return { uid: { errored: true, er } } })
 
     // Get ID from header
     const { id } = req.body
 
     // Validate header
-    if (!id || !typeof id == 'string' || isNaN(parseInt(id))) return res.status(400).json({ message: 'missing/invalid notification id:'.concat(id) })
+    if (!id || isNaN(parseInt(id))) return res.status(400).json({ message: 'missing/invalid notification id:'.concat(id) })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -317,20 +317,22 @@ Router.post('/notification/archive', async (req, res) => {
 
 Router.post('/notification/important', async (req, res) => {
     // Check token and permissions
-    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+    const uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { console.log(er); return { uid: { errored: true, er } } })
 
     // Get ID from header
     const { id } = req.body
 
     // Validate header
-    if (!id || !typeof id == 'string' || isNaN(parseInt(id))) return res.status(400).json({ message: 'missing/invalid notification id:'.concat(id) })
+    if (!id || isNaN(parseInt(id))) return res.status(400).json({ message: 'missing/invalid notification id:'.concat(id) })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
+    console.log('at query')
+
     //Query
-    let q = await pool.request().query(`UPDATE notifications SET important = NOT important WHERE id = '${id}' AND user_id = '${uid}'`)
+    let q = await pool.request().query(`UPDATE notifications SET important = 1 ^ important WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ error: q.error })
 
@@ -339,7 +341,7 @@ Router.post('/notification/important', async (req, res) => {
 
 Router.post('/notification/read', async (req, res) => {
     // Check token and permissions
-    const { uid } = await tokenParsing.toUID(req.headers.authorization)
+    const uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { console.log(er); return { uid: { errored: true, er } } })
 
     // Get ID from header
@@ -352,7 +354,7 @@ Router.post('/notification/read', async (req, res) => {
     let pool = await sql.connect(config)
 
     //Query
-    let q = await pool.request().query(`UPDATE notifications SET read = 0 WHERE (${ids.map(id => `id = ${id}`).join(' OR ')}) AND user_id = '${uid}'`)
+    let q = await pool.request().query(`UPDATE notifications SET [read] = '1' WHERE ${ids.map(id => `id = '${id}'`).join(' OR ')} AND user_id = '${uid}'`)
         .catch(er => { return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ error: q.error })
 
