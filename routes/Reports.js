@@ -544,7 +544,7 @@ Router.get('/excel', async (req, res) => {
     for (let i of user_query.recordset) usernames[i.id] = i.name
 
     let applicableUsers = new Set()
-    if (asset_tracking_query) for (let i of asset_tracking_query) { console.log(i); applicableUsers.add(i.user_id) }
+    if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
 
     // Get Job Code Names
@@ -748,7 +748,6 @@ Router.get('/excel', async (req, res) => {
                 }])
             if (range) d[d.length - 1].push({ value: revenue, rightBorderStyle: 'thin', },)
             d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
-            ind++
         })
 
         // Get Percentage
