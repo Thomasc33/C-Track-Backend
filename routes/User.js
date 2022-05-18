@@ -4,6 +4,7 @@ const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
 const jwt_decode = require('jwt-decode')
 const tokenParsing = require('../lib/tokenParsing')
+const discrepencyChecks = require('../lib/discrepencyChecks')
 
 /**
  * 
@@ -359,6 +360,19 @@ Router.post('/notification/read', async (req, res) => {
     if (q.isErrored) return res.status(500).json({ error: q.error })
 
     return res.status(200).json({ message: 'ok' })
+})
+
+Router.get('/discrepancy', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (!isAdmin && !permissions.use_discrepancy_check) return res.status(401).json({ error: 'Forbidden' })
+
+    // Call discrepancycheck
+    let count = await discrepencyChecks.check(uid)
+
+    // Return
+    return res.status(200).json({ message: `Complete`, count })
 })
 
 module.exports = Router
