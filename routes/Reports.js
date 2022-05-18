@@ -544,9 +544,8 @@ Router.get('/excel', async (req, res) => {
     for (let i of user_query.recordset) usernames[i.id] = i.name
 
     let applicableUsers = new Set()
-    if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
+    if (asset_tracking_query) for (let i of asset_tracking_query) { console.log(i); applicableUsers.add(i.user_id) }
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
-    // let applicableUserString = [...applicableUsers].filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined).join(',')
 
     // Get Job Code Names
     let job_codes = {}
@@ -557,7 +556,7 @@ Router.get('/excel', async (req, res) => {
     let prices = await getJobPrices()
 
     // Get Tsheets Data
-    const tsheets_data = await getTsheetsData(job_codes, start, end) //applicableUserString
+    const tsheets_data = await getTsheetsData(job_codes, start, end, [...applicableUsers])
 
     const data = [
         [{ value: 'Report Date' }],
@@ -610,7 +609,6 @@ Router.get('/excel', async (req, res) => {
         let totalrevenue = 0.0
         let totalhours = 0.0
 
-        let ind = 0
         assetJobCodes.forEach(jc => {
             let job_price = new Set(), ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0.0, hrly_revenue = 0, snipe_count = 0, unique = [], dailyRevenue = 0, days = 0
 
@@ -673,7 +671,6 @@ Router.get('/excel', async (req, res) => {
             { value: hrly_revenue, rightBorderStyle: 'thin', backgroundColor: hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor }])
             if (range) d[d.length - 1].push({ value: revenue / days, rightBorderStyle: 'thin', })
             d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
-            ind++
         })
 
         hourlyJobCodes.forEach(jc => {
@@ -776,12 +773,12 @@ Router.get('/excel', async (req, res) => {
         for (let i in d[d.length - 1]) d[d.length - 1][i].bottomBorderStyle = 'thin'
 
         // Apply alternating color to rows
-        for (let i in d) if (![0, 1].includes(parseInt(i)) && i % 2 == 1) { console.log(i); for (let j in d[i]) d[i][j].backgroundColor = reportTunables.rowAlternatingColor }
+        for (let i in d) if (![0, 1].includes(parseInt(i)) && i % 2 == 1) { for (let j in d[i]) if (!d[i][j].backgroundColor) d[i][j].backgroundColor = reportTunables.rowAlternatingColor }
 
         if (snipeData && snipeData[date] && snipeData[date][id]) {
             for (let i in snipeData[date][id]) {
                 if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
-                    let ts_count, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
+                    let ts_count = 0, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
                     if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += parseInt(i.count) }
                     discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
                 }
@@ -968,15 +965,16 @@ function getDate(date) {
  * @param {Date} end The end date
  * @returns {Object} tsheets_data
  */
-async function getTsheetsData(job_codes, start, end) {
+async function getTsheetsData(job_codes, start, end, user_ids = []) {
     const tsheets_data = {}
+    if (user_ids.length) user_ids = user_ids.filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined)
     let job_code_cache = {} //tsid:db id
     let loop = true, failed = false
     let page = 1
     do {
         let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
             params: {
-                //user_ids: applicableUserString,
+                user_ids: user_ids.join(','),
                 start_date: start,
                 jobcode_ids: 61206982, // CURO's customer id
                 end_date: end || undefined,
@@ -1016,7 +1014,7 @@ async function getTsheetsData(job_codes, start, end) {
                 }
                 if (!f) i.jobCode = null
             }
-            i.count = i.notes ? i.notes.replace(/[:-]/g, ' ').split(' ')[0] : 0
+            i.count = i.notes ? i.notes.replace(/[^\d\w]/g, ' ').split(' ')[0] : 0
             if (isNaN(i.count)) i.count = 0
             i.hours = i.duration / 3600
             tsheets_data[d][uid].timesheets.push(i)
