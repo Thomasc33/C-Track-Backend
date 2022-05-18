@@ -375,4 +375,17 @@ Router.get('/discrepancy', async (req, res) => {
     return res.status(200).json({ message: `Complete`, count })
 })
 
+Router.get('/discrepancy/all', async (req, res) => {
+    // Check token and permissions
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (!isAdmin && !permissions.use_all_discrepancy_check) return res.status(401).json({ error: 'Forbidden' })
+
+    // Call discrepancycheck
+    await discrepencyChecks.check()
+
+    // Return
+    return res.status(200).json({ message: `Complete` })
+})
+
 module.exports = Router
