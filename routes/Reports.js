@@ -990,7 +990,7 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
         if (ts_call.data.more) page++
         else loop = false
 
-        for (let ind in sheets) { //this might have to be 'for in'
+        for (let ind in sheets) {
             let i = sheets[ind]
             let d = i.date
             let uid = TSheetsUIDtoUID[`${i.user_id}`] // check data type, the key is string, key[id] is Number
