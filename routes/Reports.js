@@ -8,9 +8,7 @@ const reportTunables = require('../reportTunables.json')
 const SnipeBearer = require('../settings.json').snipeBearer
 const tsheetsBearer = require('../settings.json').tsheets.token
 const snipeAPILink = 'https://cpoc.snipe-it.io/api/v1'
-const jobIdToSnipe = require('../snipeJobCodeConversion.json')
 const userIdToSnipe = require('../snipeUserConversion.json')
-const snipeToJobId = Object.fromEntries(Object.entries(jobIdToSnipe).map(a => a.reverse()))
 const snipeToUID = Object.fromEntries(Object.entries(userIdToSnipe).map(a => a.reverse()))
 const UIDtoTSheetsUID = require('../tsheetsUidConversion.json')
 const TSheetsUIDtoUID = Object.fromEntries(Object.entries(UIDtoTSheetsUID).map(a => a.reverse()))
@@ -1033,6 +1031,9 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
  */
 function getSnipeData(start) {
     return new Promise(async (res, rej) => {
+        // Get current job codes and snipe ids
+        const { jobIdToSnipe, snipeToJobId } = await getSnipeIds()
+
         let startD = new Date(start)
         const data = {}
         let today = new Date().toISOString().split('T')[0]
@@ -1070,6 +1071,15 @@ function getSnipeData(start) {
             }
         }
         res(data)
+    })
+}
+
+function getSnipeIds() {
+    return new Promise(async res => {
+        let pool = await sql.connect(config), snipeToJobId = {}, jobIdToSnipe = {}
+        let q = await pool.request().query(`SELECT id,snipe_id FROM jobs WHERE snipe_id IS NOT NULL`).then(r => r.recordset)
+        for (let i of q) { snipeToJobId[i.snipe_id] = i.id; jobIdToSnipe[i.id] = i.snipe_id }
+        res({ snipeToJobId, jobIdToSnipe })
     })
 }
 
