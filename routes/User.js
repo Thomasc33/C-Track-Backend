@@ -362,6 +362,22 @@ Router.post('/notification/read', async (req, res) => {
     return res.status(200).json({ message: 'ok' })
 })
 
+Router.delete('/notification/all', async (req, res) => {
+    // Check token and permissions
+    const uid = await tokenParsing.toUID(req.headers.authorization)
+        .catch(er => { console.log(er); return { uid: { errored: true, er } } })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //Query
+    let q = await pool.request().query(`UPDATE notifications SET archived = '1' WHERE user_id = '${uid}'`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ error: q.error })
+
+    return res.status(200).json({ message: 'ok' })
+})
+
 Router.get('/discrepancy', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
