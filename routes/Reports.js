@@ -776,7 +776,7 @@ Router.get('/excel', async (req, res) => {
             for (let i in snipeData[date][id]) {
                 if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
                     let ts_count = 0, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
-                    if (tsheets_data[date]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += parseInt(i.count) }
+                    if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += parseInt(i.count) }
                     discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
                 }
             }
