@@ -354,7 +354,7 @@ Router.post('/hourlysummary', async (req, res) => {
     for (let i of hourly_tracking_query) {
         data.push([
             { value: usernames[i.user_id] },
-            { value: job_codes[i.job_code].name || i.job_code },
+            { value: job_codes[i.job_code] ? job_codes[i.job_code].name : i.job_code },
             { value: i.date.toISOString().split('T')[0] },
             { value: i.start_time.toISOString().substring(11, 19) },
             { value: i.end_time.toISOString().substring(11, 19) },
