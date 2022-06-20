@@ -354,7 +354,7 @@ Router.post('/hourlysummary', async (req, res) => {
     for (let i of hourly_tracking_query) {
         data.push([
             { value: usernames[i.user_id] },
-            { value: job_codes[i.job_code].name },
+            { value: job_codes[i.job_code].name || i.job_code },
             { value: i.date.toISOString().split('T')[0] },
             { value: i.start_time.toISOString().substring(11, 19) },
             { value: i.end_time.toISOString().substring(11, 19) },
@@ -1032,6 +1032,7 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
 function getSnipeData(start) {
     return new Promise(async (res, rej) => {
         // Get current job codes and snipe ids
+        // TODO: These two might need to be flipped, no time today though
         const { jobIdToSnipe, snipeToJobId } = await getSnipeIds()
 
         let startD = new Date(start)
