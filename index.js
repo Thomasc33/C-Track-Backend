@@ -20,7 +20,7 @@ const config = require('./settings.json').SQLConfig
 async function dbConnect() {
     try {
         let pool = await sql.connect(config)
-        let res = await pool.request().query(`SELECT * FROM users WHERE id = 1`)
+        await pool.request().query(`SELECT * FROM users WHERE id = 1`)
     }
     catch (err) {
         throw err

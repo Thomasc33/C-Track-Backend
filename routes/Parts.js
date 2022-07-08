@@ -400,9 +400,6 @@ Router.post('/log', async (req, res) => {
 })
 
 Router.put('/log', async (req, res) => {
-    //TODO: Implement this
-    // this one will have a part id with it, add it to db
-
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
