@@ -98,6 +98,14 @@ Router.get('/mgmt', async (req, res) => {
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
+    // Get unique part counts
+    let parts = await pool.request().query(`SELECT model_number,alt_models FROM part_list`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (parts.isErrored) return res.status(500).json({ message: 'Error', error: parts.error })
+    for (let i = 0; i < q.recordset.length; i++) {
+        q.recordset[i].part_count = parts.recordset.filter(p => p.model_number === q.recordset[i].model_number || (p.alt_models && p.alt_models.split(',').includes(q.recordset[i].model_number))).length
+    }
+
     // Return Data
     return res.status(200).json(q.recordset)
 })
