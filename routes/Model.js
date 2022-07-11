@@ -107,7 +107,8 @@ Router.post('/edit', async (req, res) => {
             //no further validation needed
             break;
         case 'category':
-            if (!require('../settings.json').deviceTypes.includes(value)) errors.push("Category not recognized")
+            for (let i of value.split(','))
+                if (!require('../settings.json').deviceTypes.includes(i)) { errors.push("Category not recognized"); break }
             break;
         default:
             errors.push('Unknown change type')
@@ -143,7 +144,9 @@ Router.post('/new', async (req, res) => {
     if (!model_number) issues.push('Model Number Not Provided')
     if (!model_name) issues.push('Model Name Not Provided')
     if (!manufacturer) issues.push('Manufacturer Not Provided')
-    if (!category || !require('../settings.json').deviceTypes.includes(category)) issues.push('Category not provided, or was invalid')
+    if (!category) issues.push('Category not provided')
+    if (category) for (let i of category.split(','))
+        if (!require('../settings.json').deviceTypes.includes(i)) issues.push("Category not recognized")
 
     if (issues.length > 0) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 

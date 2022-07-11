@@ -104,7 +104,7 @@ Router.post('/user/new', async (req, res) => {
     if (job_code_query.isErrored) return res.status(500).json(job_code_query.er)
     if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(400).json({ message: `Invalid job code '${job_code}'` })
 
-    let asset_query = await pool.request().query(`SELECT id,locked,hold_type FROM assets WHERE id = '${asset_id}'`)
+    let asset_query = await pool.request().query(`SELECT id,locked,hold_type,model_number FROM assets WHERE id = '${asset_id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (asset_query.isErrored) return res.status(500).json(asset_query.er)
     if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_id}'` })
@@ -113,8 +113,13 @@ Router.post('/user/new', async (req, res) => {
     let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (model_query.isErrored) return res.status(500).json(model_query.er)
-    if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
-    // if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(asset_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
+    if (!model_query.recordset || !model_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${asset_id}'` })
+    if (job_code_query.recordset[0].applies) {
+        let compatable = false
+        for (let i of job_code_query.recordset[0].applies.split(','))
+            if (model_query.recordset[0].category.split(',').includes(i)) compatable = true
+        if (!compatable) return res.status(400).json({ message: `Job code '${job_code}' does not apply to model '${asset_query.recordset[0].model_number}'` })
+    }
 
     // Send to DB
     let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ${commentArray.map(m => `('${uid}', '${asset_id}', '${job_code}', '${date}', ${m ? `'${m}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`).join(', ')}`)
@@ -203,7 +208,12 @@ Router.post('/user/edit', async (req, res) => {
 
         if (model_query.isErrored) return res.status(500).json(model_query.er)
         if (!model_query.recordset || !model_query.recordset[0]) return res.status(400).json({ message: `Invlaid model_number in asset id '${id}'` })
-        if (job_code_query.recordset[0].applies && !job_code_query.recordset[0].applies.split(',').includes(model_query.recordset[0].category)) return res.status(403).json({ message: 'Job code doesnt apply to model type' })
+        if (job_code_query.recordset[0].applied) {
+            let compatable = false
+            for (let i of job_code_query[0].applies.split(','))
+                if (model_query.recordset[0].category.split(',').includes(i)) compatable = true
+            if (!compatable) return res.status(400).json({ message: `Job code '${value}' is not compatable with model '${asset_query.recordset[0].model_number}'` })
+        }
     }
     else if (change == 'asset') {
         // Validate asset exists and isnt locked
