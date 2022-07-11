@@ -236,6 +236,33 @@ Router.post('/mgmt/part/edit', async (req, res) => {
     return res.status(200).json(q.recordset)
 })
 
+Router.delete('/mgmt/part/:id', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Data Validation
+    const { id } = req.params
+
+    let issues = []
+    if (!id) issues.push('Missing id')
+
+    if (issues.length) return res.status(400).json({ message: issues.join('\n') })
+
+    // Query the DB
+    let q = await pool.request().query(`DELETE FROM part_list WHERE id = '${id}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
+
+    // Return Data
+    return res.status(200).json(q.recordset)
+})
+
 // Parts Inventory
 
 Router.get('/inventory', async (req, res) => {
