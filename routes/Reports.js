@@ -4,15 +4,15 @@ const sql = require('mssql')
 const axios = require('axios').default
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
-const reportTunables = require('../reportTunables.json')
+const reportTunables = require('../data/reportTunables.json')
 const SnipeBearer = require('../settings.json').snipeBearer
 const tsheetsBearer = require('../settings.json').tsheets.token
 const snipeAPILink = 'https://cpoc.snipe-it.io/api/v1'
-const userIdToSnipe = require('../snipeUserConversion.json')
+const userIdToSnipe = require('../data/snipeUserConversion.json')
 const snipeToUID = Object.fromEntries(Object.entries(userIdToSnipe).map(a => a.reverse()))
-const UIDtoTSheetsUID = require('../tsheetsUidConversion.json')
+const UIDtoTSheetsUID = require('../data/tsheetsUidConversion.json')
 const TSheetsUIDtoUID = Object.fromEntries(Object.entries(UIDtoTSheetsUID).map(a => a.reverse()))
-const JobCodePairs = require('../jobCodePairs.json')
+const JobCodePairs = require('../data/jobCodePairs.json')
 const JobCodePairsSet = new Set()
 JobCodePairs.forEach(a => a.forEach(ele => JobCodePairsSet.add(ele)))
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
