@@ -2,5 +2,5 @@ settings.json
 /node_modules
 cert.pem
 key.pem
-cert.pfx
-chain.pem
+/certs/cert.pfx
+/certs/chain.pem
