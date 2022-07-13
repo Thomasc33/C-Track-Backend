@@ -12,11 +12,10 @@ const discrepencyChecks = require('../lib/discrepencyChecks')
 Router.get('/verify', async (req, res) => {
     // Check token using toUid function
     let uid = await tokenParsing.toUID(req.headers.authorization)
-        .catch(er => { return { uid: { errored: true, er } } })
-    if (!uid.errored) return res.status(200).json({ message: `Success`, uid })
+        .catch(er => { return { ...er } })
+    if (!uid.isErrored) return res.status(200).json({ message: `Success`, uid })
 
     if (uid.error == 'archived') return res.status(400).json({ message: 'archived' })
-
 
     //get and parse token
     const decoded = jwt_decode(req.headers.authorization)
