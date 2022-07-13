@@ -158,7 +158,7 @@ Router.post('/new', async (req, res) => {
         errored = true
         issues.push('Job Name Not Provided')
     }
-    if (!price || (typeof (price) == 'string' && price.replace(/.\d/gi, '') !== '')) {
+    if (isNaN(parseInt(price)) || (typeof (price) == 'string' && price.replace(/.\d/gi, '') !== '')) {
         errored = true
         issues.push('Invalid Price or Price not type Int')
     }
