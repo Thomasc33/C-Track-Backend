@@ -1,13 +1,12 @@
 {
   "name": "asset-tracking",
-  "version": "1.3.4",
+  "version": "1.3.5",
   "description": "Asset Tracker for CPOC",
+  "private": true,
   "main": "index.js",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
+  "scripts": {},
   "author": "Thomas Carr",
-  "license": "ISC",
+  "license": "UNLICENSED",
   "dependencies": {
     "axios": "^0.27.2",
     "cors": "^2.8.5",

@@ -3,6 +3,7 @@ const Router = express.Router()
 const sql = require('mssql')
 const tokenParsing = require('../lib/tokenParsing')
 const config = require('../settings.json').SQLConfig
+const LogEmitter = require('../lib/partStockNotifications').LogEmitter
 
 // Common Parts
 
@@ -169,6 +170,12 @@ Router.get('/mgmt/model/:model', async (req, res) => {
     let common = []
     for (let i of cq.recordset) if (i.manufacturer.toLowerCase().split(',').includes(manufacturer.toLowerCase())) common.push(i)
 
+    // Watching
+    for (let i of q.recordset) {
+        if (i.watchers && i.watchers.split(',').includes(`${uid}`)) i.watching = true
+        else i.watching = false
+    }
+
     // Return Data
     let data = { parts: q.recordset, common: common }
     return res.status(200).json(data)
@@ -195,7 +202,7 @@ Router.put('/mgmt/part/create', async (req, res) => {
     if (issues.length) return res.status(400).json({ message: issues.join('\n') })
 
     // Query the DB
-    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,model_number,image,minimum_stock) VALUES ('${part}','${type}','${model}','${image ? image : 'null'}',${m_stock})`)
+    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,model_number,image,minimum_stock) VALUES ('${part}','${type}','${model}',${image ? `${image}` : 'NULL'},${m_stock})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
@@ -219,16 +226,16 @@ Router.post('/mgmt/part/edit', async (req, res) => {
     let issues = []
     if (!change) issues.push('Missing change')
     if (!model) issues.push('Missing model')
-    if (!value) issues.push('Missing value')
+    if (!value && change !== 'image') issues.push('Missing value')
     if (!id) issues.push('Missing id')
 
-    const changeToDB = { 'type': 'part_type', 'part': 'part_number', 'image': 'image', 'alt_models': 'alt_models' }
+    const changeToDB = { 'type': 'part_type', 'part': 'part_number', 'image': 'image', 'alt_models': 'alt_models', 'm_stock': 'minimum_stock' }
     if (!changeToDB[change]) issues.push('Unknown change type')
 
     if (issues.length) return res.status(400).json({ message: issues.join('\n') })
 
     // Query the DB
-    let q = await pool.request().query(`UPDATE part_list SET ${changeToDB[change]} = '${value}' WHERE id = ${id} AND model_number = '${model}'`)
+    let q = await pool.request().query(`UPDATE part_list SET ${changeToDB[change]} = ${value ? `'${value}'` : 'NULL'} WHERE id = ${id}`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
@@ -261,6 +268,77 @@ Router.delete('/mgmt/part/:id', async (req, res) => {
 
     // Return Data
     return res.status(200).json(q.recordset)
+})
+
+Router.get('/mgmt/part/watch/:id', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Data Validation
+    const { id } = req.params
+
+    let issues = []
+    let watchers = []
+    if (!id) issues.push('Missing id')
+    else {
+        let q = await pool.request().query(`SELECT * FROM part_list WHERE id = '${id}'`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (q.isErrored || q.rowsAffected == 0) issues.push('Invalid id')
+        else watchers = q.recordset[0].watchers ? q.recordset[0].watchers.split(',') : []
+    }
+
+    if (issues.length) return res.status(400).json({ message: issues.join('\n') })
+
+    // Query the DB
+    if (!watchers.includes(`${uid}`)) {
+        watchers.push(`${uid}`)
+        let q = await pool.request().query(`UPDATE part_list SET watchers = '${watchers.join(',')}' WHERE id = '${id}'`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
+        return res.status(200).json({ message: 'Subscribed' })
+    } else return res.status(200).json({ message: 'Already subscribed' })
+})
+
+Router.delete('/mgmt/part/watch/:id', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Data Validation
+    const { id } = req.params
+
+    let issues = []
+    let watchers = []
+    if (!id) issues.push('Missing id')
+    else {
+        let q = await pool.request().query(`SELECT * FROM part_list WHERE id = '${id}'`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (q.isErrored || q.rowsAffected == 0) issues.push('Invalid id')
+        else watchers = q.recordset[0].watchers ? q.recordset[0].watchers.split(',') : []
+    }
+    if (!watchers.includes(`${uid}`)) issues.push('Not subscribed')
+
+    if (issues.length) return res.status(400).json({ message: issues.join('\n') })
+
+    // Query the DB
+    watchers = watchers.filter(watcher => watcher != `${uid}`)
+    let q = await pool.request().query(`UPDATE part_list SET watchers = '${watchers.join(',')}' WHERE id = '${id}'`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
+
+    // Return Data
+    return res.status(200).json({ message: 'Unsubscribed' })
 })
 
 // Parts Inventory
@@ -424,6 +502,7 @@ Router.post('/log', async (req, res) => {
         let sub_q = await pool.request().query(`UPDATE parts SET used_by = '${uid}', location = '${asset}', used_on = ${date ? `'${date}'` : 'GETDATE()'} WHERE id = '${o_q[0].id}'`)
             .catch(er => { return { isErrored: true, er } })
         if (sub_q.isErrored) return res.status(500).json({ er: sub_q.er })
+        LogEmitter.emit('log', o_q[0].part_id)
     }
 
     // Supplemental Data
@@ -454,7 +533,14 @@ Router.put('/log', async (req, res) => {
     if (sub_q.isErrored) return res.status(400).json({ er: sub_q.er })
 
     // return 200
-    return res.status(200).json({ message: 'ok' })
+    res.status(200).json({ message: 'ok' })
+
+    // Get part's parent id
+    let q = await pool.request().query(`SELECT part_id FROM parts WHERE id = '${part.id}'`)
+        .catch(er => { return { isErrored: true, er } })
+    if (q.isErrored) return console.log(q.er)
+    console.log(q.recordset)
+    LogEmitter.emit('log', q.recordset[0].part_id)
 })
 
 Router.get('/log/:date', async (req, res) => {
