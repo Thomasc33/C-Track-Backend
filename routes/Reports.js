@@ -195,6 +195,48 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     return res.status(200).json(data)
 })
 
+Router.get('/tsheets/:uid/:date', async (req, res) => {
+    let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
+    if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get and check UID
+    uid = req.params.uid
+    if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
+    let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
+    if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
+
+    // Get Date
+    let date = req.params.date
+    if (!date || date == '') return res.status(400).json({ message: 'No date given' })
+
+    // Get Job Code Names
+    let job_codes = {}
+    let job_code_query = await pool.request().query(`SELECT * FROM jobs`)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (job_code_query.isErrored) return res.status(500).json({ message: 'Error fetching job codes' })
+    for (let i of job_code_query.recordset) job_codes[i.id] = { name: i.job_code, ...i }
+
+    // Get T-Sheets Data
+    let tsheets_data = await getTsheetsData(job_codes, date, date, [uid])
+    console.log(tsheets_data)
+
+    // Return Data or empty array
+    if (!tsheets_data[date] || !tsheets_data[date][uid] || !tsheets_data[date][uid].timesheets || !tsheets_data[date][uid].timesheets.length) return res.status(200).json([])
+
+    // Add Job Information to T-Sheets Data
+    for (let i of tsheets_data[date][uid].timesheets) {
+        if (i.jobCode) i.job = job_codes[i.jobCode]
+        if (JobCodePairsSet.has(i.jobCode)) i.altJob = job_codes[JobCodePairsSet.get(i.jobCode)]
+    }
+
+    return res.status(200).json(tsheets_data[date][uid].timesheets)
+})
+
 // Modified Asset and Hourly Routes for use of report editors
 Router.get('/asset/user/:uid/:date', async (req, res) => {
     // Validate requestor and check their permissions
