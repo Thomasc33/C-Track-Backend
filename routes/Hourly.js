@@ -12,14 +12,14 @@ const typeOfToColumn = {
     in_progress: 'in_progress'
 }
 
-Router.get('/user/:date', async (req, res) => {
+Router.get('/user', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
-    let date = req.params.date
+    let date = req.query.date
 
     // Establish SQL Connection
     let pool = await sql.connect(config)

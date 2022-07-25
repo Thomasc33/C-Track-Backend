@@ -45,8 +45,8 @@ Router.get('/all', async (req, res) => {
     return res.status(200).json(data)
 })
 
-Router.get('/all/:type', async (req, res) => {
-    let type = req.params.type
+Router.get('/all/type', async (req, res) => {
+    let type = req.query.type
     if (!['hrly', 'asset'].includes(type)) return res.status(400).json(`${type} is not a valid type (hrly, asset)`)
 
     // Establish SQL Connection
@@ -75,13 +75,13 @@ Router.get('/all/:type', async (req, res) => {
     return res.status(200).json(data)
 })
 
-Router.get('/favorites/:type', async (req, res) => {
+Router.get('/favorites', async (req, res) => {
     // Get UID
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
     if (!uid) return res.status(400).json({ er: 'No UID' })
 
     // Get hrly/asset type
-    let type = req.params.type
+    let type = req.query.type
     if (!['hrly', 'asset'].includes(type)) return res.status(400).json({ er: 'Missing type parameter (hrly/asset)' })
 
     // Establish SQL Connection

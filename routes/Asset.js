@@ -17,21 +17,19 @@ const typeOfToColumn = {
     job: 'job_code',
 }
 
-Router.get('/user/:date', async (req, res) => {
+Router.get('/user', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
-    //Get date from header
-    let date = req.params.date
+    // Get date from header
+    let date = req.query.date
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
     // Get Data
-
-
     let asset_tracking = await pool.request().query(`SELECT * FROM asset_tracking WHERE user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -285,14 +283,14 @@ Router.delete('/user/del', async (req, res) => {
     return res.status(200).json({ message: 'Success' })
 })
 
-Router.get('/fetch/:id', async (req, res) => {
+Router.get('/fetch', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
-    let id = req.params.id
+    let id = req.query.id
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -353,14 +351,14 @@ Router.post('/catalog', async (req, res) => {
     return res.status(200).json(data)
 })
 
-Router.get('/get/:search', async (req, res) => {
+Router.get('/get', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
-    const search = req.params.search
+    const search = req.query.q
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -814,7 +812,7 @@ Router.post('/alter', async (req, res) => {
     return res.status(200).json({ data: 'Success' })
 })
 
-Router.delete('/alter/:column', async (req, res) => {
+Router.delete('/alter', async (req, res) => {
     const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
@@ -822,7 +820,7 @@ Router.delete('/alter/:column', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    const column = req.params.column
+    const column = req.query.column
 
     let q = await pool.request().query(`ALTER TABLE assets DROP COLUMN ${column}`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })

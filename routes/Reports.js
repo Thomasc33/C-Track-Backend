@@ -17,7 +17,7 @@ const JobCodePairsSet = new Set()
 JobCodePairs.forEach(a => a.forEach(ele => JobCodePairsSet.add(ele)))
 const monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
-Router.get('/users/daily/:date', async (req, res) => {
+Router.get('/users/daily', async (req, res) => {
     // Check token using toUid function
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -25,7 +25,7 @@ Router.get('/users/daily/:date', async (req, res) => {
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'missing permission' })
 
     // Get Date
-    const date = req.params.date
+    const date = req.query.date
     if (!date) return res.status(400).json({ message: 'No date provided' })
 
     // Establish SQL Connection
@@ -65,7 +65,7 @@ Router.get('/users/daily/:date', async (req, res) => {
     return res.status(200).json(d)
 })
 
-Router.get('/user/:uid/:date', async (req, res) => {
+Router.get('/user', async (req, res) => {
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
@@ -75,11 +75,11 @@ Router.get('/user/:uid/:date', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get Date
-    const date = req.params.date
+    const date = req.query.date
     if (!date) return res.status(400).json({ message: 'No date provided' })
 
     // Data validation for UID. Check for UID, and Check if UID exists
-    uid = req.params.uid
+    uid = req.query.uid
     if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
     if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
@@ -143,7 +143,7 @@ Router.get('/user/:uid/:date', async (req, res) => {
     return res.status(200).json(data)
 })
 
-Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
+Router.get('/graph/user', async (req, res) => {
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
@@ -153,9 +153,9 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get and check UID
-    uid = req.params.uid
-    let from = req.params.from
-    let to = req.params.to
+    uid = req.query.uid
+    let from = req.query.from
+    let to = req.query.to
     if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
     if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
@@ -195,7 +195,7 @@ Router.get('/graph/user/:uid/:from/:to', async (req, res) => {
     return res.status(200).json(data)
 })
 
-Router.get('/tsheets/:uid/:date', async (req, res) => {
+Router.get('/tsheets', async (req, res) => {
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
@@ -205,13 +205,13 @@ Router.get('/tsheets/:uid/:date', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get and check UID
-    uid = req.params.uid
+    uid = req.query.uid
     if (!uid || uid == '') return res.status(400).json({ message: 'No UID given' })
     let resu = await pool.request().query(`SELECT id FROM users WHERE id = ${uid}`).catch(er => { return `Invalid UID` })
     if (resu == 'Invalid UID') return res.status(400).json({ message: 'Invalid UID or not found' })
 
     // Get Date
-    let date = req.params.date
+    let date = req.query.date
     if (!date || date == '') return res.status(400).json({ message: 'No date given' })
 
     // Get Job Code Names
@@ -238,18 +238,18 @@ Router.get('/tsheets/:uid/:date', async (req, res) => {
 })
 
 // Modified Asset and Hourly Routes for use of report editors
-Router.get('/asset/user/:uid/:date', async (req, res) => {
+Router.get('/asset/user', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
-    // Get UID from params
-    uid = req.params.uid
+    // Get UID from query
+    uid = req.query.uid
 
-    //Get date from params
-    let date = req.params.date
+    //Get date from query
+    let date = req.query.date
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -274,18 +274,18 @@ Router.get('/asset/user/:uid/:date', async (req, res) => {
 })
 
 // Done Assets, begin hourly
-Router.get('/hourly/user/:uid/:date', async (req, res) => {
+Router.get('/hourly/user', async (req, res) => {
     // Validate requestor and check their permissions
     let { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'Access Denied' })
 
-    // Get UID from header
-    uid = req.params.uid
+    // Get UID from query
+    uid = req.query.uid
 
-    //Get date from header
-    let date = req.params.date
+    //Get date from query
+    let date = req.query.date
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -410,14 +410,14 @@ Router.post('/hourlysummary', async (req, res) => {
     res.status(200).json({ data, columns })
 })
 
-Router.get('/jobusage/:type', async (req, res) => {
+Router.get('/jobusage', async (req, res) => {
     //TODO: Price History
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(401).json({ message: 'bad authorization token' })
     if (!isAdmin && !permissions.view_reports) return res.status(401).json({ message: 'Access Denied' })
 
-    const type = req.params.type.toLowerCase()
+    const type = req.query.type ? req.query.type.toLowerCase() : null
 
     if (!type || !['ytd', 'at'].includes(type)) return res.status(400).json({ error: `type: '${type}' not recognized` })
 

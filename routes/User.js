@@ -228,9 +228,9 @@ Router.post('/pref/jobs/favorites', async (req, res) => {
 
     // Get hrly/asset type
     const { type, isRemove, job_id } = req.body
-    if (!['hrly', 'asset'].includes(type)) return res.status(400).json({ er: 'Missing type (hrly/asset)' })
-    if (![0, 1].includes(isRemove)) return res.status(400).json({ error: 'isRemove is not binary' })
-    if (!job_id) return res.status(400).json({})
+    if (!['hrly', 'asset'].includes(type)) return res.status(400).json({ message: 'Missing type (hrly/asset)' })
+    if (![0, 1].includes(isRemove)) return res.status(400).json({ message: 'isRemove is not binary' })
+    if (!job_id) return res.status(400).json({ message: 'Missing job_id' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -329,8 +329,6 @@ Router.post('/notification/important', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    console.log('at query')
-
     //Query
     let q = await pool.request().query(`UPDATE notifications SET important = 1 ^ important WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { return { isErrored: true, error: er } })
@@ -354,7 +352,7 @@ Router.post('/notification/read', async (req, res) => {
     let pool = await sql.connect(config)
 
     //Query
-    let q = await pool.request().query(`UPDATE notifications SET [read] = '1' WHERE ${ids.map(id => `id = '${id}'`).join(' OR ')} AND user_id = '${uid}'`)
+    let q = await pool.request().query(`UPDATE notifications SET [read] = '1', [read_at] = GETDATE() WHERE ${ids.map(id => `id = '${id}'`).join(' OR ')} AND user_id = '${uid}' AND [read] = '0'`)
         .catch(er => { return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ error: q.error })
 

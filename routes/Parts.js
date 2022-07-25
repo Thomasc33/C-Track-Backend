@@ -137,7 +137,7 @@ Router.post('/mgmt/models/create', async (req, res) => {
     return res.status(200).json({ message: 'success' })
 })
 
-Router.get('/mgmt/model/:model', async (req, res) => {
+Router.get('/mgmt/model', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -145,7 +145,7 @@ Router.get('/mgmt/model/:model', async (req, res) => {
     if (!isAdmin && !permissions.view_parts) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
     // Get model number
-    const model = req.params.model
+    const model = req.query.model
 
     // Text check model number
     if (!model || typeof model != 'string') return res.status(400).json({ message: 'Invalid model number' })
@@ -243,7 +243,7 @@ Router.post('/mgmt/part/edit', async (req, res) => {
     return res.status(200).json(q.recordset)
 })
 
-Router.delete('/mgmt/part/:id', async (req, res) => {
+Router.delete('/mgmt/part', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -254,7 +254,7 @@ Router.delete('/mgmt/part/:id', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Data Validation
-    const { id } = req.params
+    const { id } = req.query
 
     let issues = []
     if (!id) issues.push('Missing id')
@@ -270,7 +270,7 @@ Router.delete('/mgmt/part/:id', async (req, res) => {
     return res.status(200).json(q.recordset)
 })
 
-Router.get('/mgmt/part/watch/:id', async (req, res) => {
+Router.get('/mgmt/part/watch', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -281,7 +281,7 @@ Router.get('/mgmt/part/watch/:id', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Data Validation
-    const { id } = req.params
+    const { id } = req.query
 
     let issues = []
     let watchers = []
@@ -305,7 +305,7 @@ Router.get('/mgmt/part/watch/:id', async (req, res) => {
     } else return res.status(200).json({ message: 'Already subscribed' })
 })
 
-Router.delete('/mgmt/part/watch/:id', async (req, res) => {
+Router.delete('/mgmt/part/watch', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -316,7 +316,7 @@ Router.delete('/mgmt/part/watch/:id', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Data Validation
-    const { id } = req.params
+    const { id } = req.query
 
     let issues = []
     let watchers = []
@@ -431,7 +431,7 @@ Router.get('/inventory', async (req, res) => {
 
 // Repair Log
 
-Router.get('/log/asset/:asset', async (req, res) => {
+Router.get('/log/asset', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -439,7 +439,7 @@ Router.get('/log/asset/:asset', async (req, res) => {
     if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
     // Get asset from route
-    const asset = req.params.asset
+    const asset = req.query.asset
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -543,15 +543,15 @@ Router.put('/log', async (req, res) => {
     LogEmitter.emit('log', q.recordset[0].part_id)
 })
 
-Router.get('/log/:date', async (req, res) => {
+Router.get('/log', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
     if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
-    // Get date from params
-    const date = req.params.date
+    // Get date from query
+    const date = req.query.date
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -573,7 +573,7 @@ Router.get('/log/:date', async (req, res) => {
     return res.status(200).json({ data: q, part_id_info })
 })
 
-Router.delete('/log/:id', async (req, res) => {
+Router.delete('/log', async (req, res) => {
     // Check token and permissions
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -581,7 +581,7 @@ Router.delete('/log/:id', async (req, res) => {
     if (!isAdmin && !permissions.use_repair_log) return res.status(401).json({ error: 'Not authtorized to use this route' })
 
     // Get date from params
-    const id = req.params.id
+    const id = req.query.id
     if (!id) return res.status(400).json({ message: 'Missing ID' })
 
     // Establish SQL Connection

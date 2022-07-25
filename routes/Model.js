@@ -4,14 +4,14 @@ const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 
-Router.get('/fetch/:id', async (req, res) => {
+Router.get('/fetch', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
-    let id = req.params.id
+    let id = req.query.id
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -164,14 +164,14 @@ Router.post('/new', async (req, res) => {
     return res.status(200).json({ message: 'success' })
 })
 
-Router.get('/get/:search', async (req, res) => {
+Router.get('/get', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
 
     //Get date from header
-    const search = req.params.search
+    const search = req.query.q
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
