@@ -1,6 +1,6 @@
 {
   "name": "asset-tracking",
-  "version": "1.4.0",
+  "version": "1.4.1",
   "description": "Asset Tracker for CPOC",
   "private": true,
   "main": "index.js",
