@@ -89,7 +89,7 @@ Router.post('/edit', async (req, res) => {
     // Data Validation
     let errors = []
     if (!id) errors.push('Model_number not provided')
-    if (!value) errors.push('No value provided')
+    if (!value && change != 'image') errors.push('No value provided')
     else switch (change) {
         case 'model_number':
             let resu = pool.request().query(`SELECT model_number FROM models WHERE model_number = '${value}'`)
@@ -117,7 +117,7 @@ Router.post('/edit', async (req, res) => {
     if (errors.length > 0) return res.status(400).json({ errors })
 
     // Query
-    let query = await pool.request().query(`UPDATE models SET ${change} = '${value}' WHERE model_number = '${id}'`)
+    let query = await pool.request().query(`UPDATE models SET ${change} = ${value ? `'${value}'` : 'NULL'} WHERE model_number = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors

@@ -223,10 +223,9 @@ Router.get('/tsheets', async (req, res) => {
 
     // Get T-Sheets Data
     let tsheets_data = await getTsheetsData(job_codes, date, date, [uid])
-    console.log(tsheets_data)
 
     // Return Data or empty array
-    if (!tsheets_data[date] || !tsheets_data[date][uid] || !tsheets_data[date][uid].timesheets || !tsheets_data[date][uid].timesheets.length) return res.status(200).json([])
+    if (!tsheets_data || !tsheets_data[date] || !tsheets_data[date][uid] || !tsheets_data[date][uid].timesheets || !tsheets_data[date][uid].timesheets.length) return res.status(200).json([])
 
     // Add Job Information to T-Sheets Data
     for (let i of tsheets_data[date][uid].timesheets) {
