@@ -1148,12 +1148,12 @@ function getSnipeData(start, end = null) {
         const data = {}
 
         // Get end date (today is default)
-        let end = end ? new Date(end) : new Date()
+        let endD = end ? new Date(end) : new Date()
 
         // Populate data with keys for each day
-        while (startD < end) { data[startD.toISOString().split('T')[0]] = {}; startD.setDate(startD.getDate() + 1) }
-        end = end.toISOString().split('T')[0]
-        data[end] = {}
+        while (startD < endD) { data[startD.toISOString().split('T')[0]] = {}; startD.setDate(startD.getDate() + 1) }
+        endD = endD.toISOString().split('T')[0]
+        data[endD] = {}
 
         // Reset start date back to its original value (days were added in loop above)
         startD = new Date(start)
