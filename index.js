@@ -143,4 +143,4 @@ const httpServer = http.createServer(app)
 httpServer.listen(require('./settings.json').port)
 
 // Setup CRON Tasks
-const discrepency_cron = new cron.CronJob('0 45 11,16 * * 1-5', discrepancies.check, () => { console.log('Discrepency Check Complete for All') }, true, 'America/New_York')
+const discrepency_cron = new cron.CronJob('0 45 11,16 * * 1-5', () => { discrepancies.check() }, () => { console.log('Discrepency Check Complete for All') }, true, 'America/New_York')
