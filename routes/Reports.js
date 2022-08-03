@@ -582,6 +582,7 @@ Router.get('/excel', async (req, res) => {
     if (user_query.isErrored) return res.status(500).json({ message: 'Error fetching users' })
     for (let i of user_query.recordset) usernames[i.id] = i.name
 
+    // Get list of all users who had data to report on
     let applicableUsers = new Set()
     if (asset_tracking_query) for (let i of asset_tracking_query) applicableUsers.add(i.user_id)
     if (hourly_tracking_query) for (let i of hourly_tracking_query) applicableUsers.add(i.user_id)
@@ -626,9 +627,9 @@ Router.get('/excel', async (req, res) => {
             }
         } else dates.push(date)
 
+        // Add titles to section
         d.push([{ fontSize: 24, value: usernames[id] || id }])
         d.push([{ value: 'Job Code', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' }])
-
 
         d[1].push({ value: '$ Per Job', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
             { value: range ? 'Total Hours' : 'Hours/Day', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' },
@@ -640,15 +641,19 @@ Router.get('/excel', async (req, res) => {
         if (range) d[1].push({ value: 'Daily Revenue', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
         d[1].push({ value: 'Revenue %', borderStyle: 'thin', backgroundColor: reportTunables.headerColor, fontWeight: 'bold', color: '#ffffff' })
 
+        // Get list of job codes for this user
         let assetJobCodes = new Set()
         let hourlyJobCodes = new Set()
         if (asset_tracking_query) for (let i of asset_tracking_query) if (i.user_id == id) assetJobCodes.add(i.job_code)
         if (hourly_tracking_query) for (let i of hourly_tracking_query) if (i.user_id == id) hourlyJobCodes.add(i.job_code)
 
+        // Total counters
         let totalrevenue = 0.0
         let totalhours = 0.0
 
+        // Iterate through each asset job code
         assetJobCodes.forEach(jc => {
+            // Count variables
             let job_price = new Set(), ts_hours = 0.0, ts_count = 0, count = 0, goal = 0, hrly_count = 0, revenue = 0.0, hrly_revenue = 0, snipe_count = 0, unique = [], dailyRevenue = 0, days = 0
 
             // Complimentary job code
@@ -657,47 +662,62 @@ Router.get('/excel', async (req, res) => {
 
             goal = job_codes[jc].hourly_goal || '-'
 
+            // Go through each date
             for (let date of dates) {
+                // If the tsheets data exists, add it to the count
                 if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || i.jobCode == complimentaryJC) {
                     ts_hours += i.hours;
                     ts_count += parseInt(i.count);
                     tsheetsVisited.add(i.id)
                 }
 
+                // Gets historic price if the job prices have changed
                 let p = getPriceFromDate(prices, date, jc)
                 job_price.add(p)
 
+                // Get list of all assets from this job code and user
                 let assets = []
                 for (let i of asset_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) assets.push(i.asset_id)
                 count += assets.length
                 revenue += parseFloat(assets.length) * p
 
+                // If snipe data exists, compare it to c-track data
                 if (snipeData && snipeData[date] && snipeData[date][id] && (snipeData[date][id][jc] || snipeData[date][id][parseInt(jc)])) {
+                    // Get snipe count
                     snipe_count += snipeData[date][id][jc] ? snipeData[date][id][jc].length : snipeData[date][id][parseInt(jc)].length;
+                    // Get list of all snipe assets touched
                     let s = snipeData[date][id][jc] ? snipeData[date][id][jc].map(m => m.toUpperCase().trim()) : snipeData[date][id][parseInt(jc)].map(m => m.toUpperCase().trim())
+                    // Get list of all c-track assets touched
                     let a = assets.map(m => m.toUpperCase().trim())
+                    // XOR the two lists
                     unique = [...a.filter(e => s.indexOf(e) === -1), ...s.filter(e => a.indexOf(e) === -1)]
                 } else {
+                    // If no snipe data, then all C-Track assets are unique values
                     unique = assets.join(', ')
                 }
 
+                // If the report is over a span of days, increase the day count
                 if (range) if (![0, 6].includes(new Date(date).getDay()) && assets.length) days++
             }
 
+            // Add revenue and hours to totals
             totalrevenue += revenue
             totalhours += ts_hours
 
+            // Divide revenue among days
             if (!days) days = 1
             dailyRevenue = round(revenue / days, 3)
 
+            // If there was a goal per hour, calculate the count per hour
             if (goal == '-') hrly_count = '-'
             else hrly_count = round(count / (ts_hours || count), 3)
 
+            // Get revenue per hour
             hrly_revenue = round(revenue / ts_hours, 3)
             if (revenue == 0) hrly_revenue = '-'
             if (hrly_revenue == Infinity) hrly_revenue = 0
 
-            // discrepancy check
+            // Discrepancy check
             if (job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count) || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
 
             d.push([{ value: job_codes[jc].name, rightBorderStyle: 'thin', },
@@ -712,37 +732,54 @@ Router.get('/excel', async (req, res) => {
             d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
         })
 
+        // Iterate through all hourly job codes
         hourlyJobCodes.forEach(jc => {
             //count totals
             let job_price = new Set(), tot_ts_hours = 0, tot_count = 0, revenue = 0, hrly_revenue = 0, days = 0, dailyRevenue = 0
 
+            // Iterate through all dates in the date range
             for (let date of dates) {
+                // Count variables
                 let ts_hours = 0, ts_count = 0, count = 0
 
+                // Get historic price if the job prices have changed
                 let p = getPriceFromDate(prices, date, jc)
                 job_price.add(p)
 
-                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) { ts_hours += i.hours; ts_count += parseInt(i.count); tsheetsVisited.add(i.id) }
+                // If tsheets data exists, add it to the count
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) {
+                    ts_hours += i.hours;
+                    ts_count += parseInt(i.count);
+                    tsheetsVisited.add(i.id)
+                }
 
+                // Add hours to the count
                 for (let i of hourly_tracking_query) if (i.user_id == id && i.date.toISOString().split('T')[0] == date && i.job_code == jc) count += i.hours
 
+                // Calculate revenue
                 revenue += ts_hours ? parseFloat(p) * parseFloat(ts_hours) : parseFloat(p) * parseFloat(count)
                 totalrevenue += revenue
                 totalhours += ts_hours ? ts_hours : count
-
                 hrly_revenue = p
 
+                // If job code logs both hourly and assets
                 if (JobCodePairsSet.has(jc)) {
                     let complimentaryJC
                     for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
                     if (complimentaryJC) for (let i of d) {
-                        if (i.length < 6) continue
+                        if (i.length < 6) continue // Ignore the wrong row
+                        // If names match (final check to make sure job codes are the same)
                         if (job_codes[`${complimentaryJC}`]) if (i[0].value == job_codes[jc].name && i[0].value == job_codes[`${complimentaryJC}`].name) {
+                            // Choose the highest count, one should be 0
                             if (parseFloat(i[1].value) < parseFloat(p)) i[1].value = p
+                            // Add hours to assets count (tsheets first, then c-track if no tsheets)
                             if (ts_hours) i[2].value = ts_hours
                             else ts_hours += i[2].value
+                            // If tsheets hours doesnt match c-track hours, add it to discrepancy list
                             if (ts_hours != count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
+                            // Choose the highest revenue, one should be 0
                             if (i[6].value < revenue) i[6].value = revenue
+                            // Replace blank cell with updated hourly revenue
                             if (i[7].value == '-' || i[7].value < hrly_revenue) {
                                 i[7].value = hrly_revenue;
                                 i[7].backgroundColor = hrly_revenue >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : hrly_revenue <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
@@ -753,6 +790,7 @@ Router.get('/excel', async (req, res) => {
                                 let i = discrepancies[id][ind]
                                 if (i.jc == complimentaryJC) {
                                     discrepancies[id][ind].ts_count = ts_count
+                                    // If it was falsely marked as a discrepancy, remove it from the discrepancy list
                                     if (i.count == i.snipe_count && i.count == ts_count) discrepancies[id].splice(ind, 1)
                                 }
                             }
@@ -763,14 +801,19 @@ Router.get('/excel', async (req, res) => {
                 //discrepancy check
                 if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date, snipe_count: '-' })
 
+                // Add hours and counts to total
                 tot_ts_hours += ts_hours
                 tot_count += count
+
+                // If report is across a date range, add to day count
                 if (range) if (![0, 6].includes(new Date(date).getDay()) && (count || ts_hours)) days++
             }
 
+            // Calculate daily revenue
             if (range && !days) days = 1
             if (range) dailyRevenue = revenue / days
 
+            // Add hourly data to report
             d.push([
                 { value: job_codes[jc].name, rightBorderStyle: 'thin', },
                 { value: Array.from(job_price).join(','), rightBorderStyle: 'thin', },
@@ -813,6 +856,7 @@ Router.get('/excel', async (req, res) => {
         // Apply alternating color to rows
         for (let i in d) if (![0, 1].includes(parseInt(i)) && i % 2 == 1) { for (let j in d[i]) if (!d[i][j].backgroundColor) d[i][j].backgroundColor = reportTunables.rowAlternatingColor }
 
+        // If snipe data, compare snipe counts to tsheets counts
         if (snipeData && snipeData[date] && snipeData[date][id]) {
             for (let i in snipeData[date][id]) {
                 if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
@@ -823,6 +867,7 @@ Router.get('/excel', async (req, res) => {
             }
         }
 
+        // Calculate the 5 day revenue if report is a single day
         let fiveDayRevenue = 0.0
         let fiveDayHours = 0.0
 
@@ -862,7 +907,6 @@ Router.get('/excel', async (req, res) => {
         // Add thick border to entire section
         let cols = 0, rows = d.length
         for (let i of d) if (i.length > cols) cols = i.length
-
         //top&bottom
         for (let i in [...Array(cols)]) {
             if (!d[0][i]) d[0][i] = {}
@@ -915,7 +959,6 @@ Router.get('/excel', async (req, res) => {
         // Add thick border to entire section
         let cols = 0, rows = d.length
         for (let i of d) if (i.length > cols) cols = i.length
-
         //top&bottom
         for (let i in [...Array(cols)]) {
             if (!d[0][i]) d[0][i] = {}
@@ -934,6 +977,7 @@ Router.get('/excel', async (req, res) => {
         }
         return d
     }
+    // Calls above functions for each user who had data
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
 
     // In T-Sheets but not C-Track
@@ -944,6 +988,7 @@ Router.get('/excel', async (req, res) => {
         }
     }
 
+    // For each user, if there were discrepancies, add them to the data
     applicableUsers.forEach(u => { if (discrepancies[u] && discrepancies[u].length > 0) data.push(...getDiscrepancy(u), [], []) })
 
     // Update global totals
@@ -956,6 +1001,7 @@ Router.get('/excel', async (req, res) => {
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
     if (range) columns.push({ width: 17.5 })
 
+    // Return the data and column layout
     return res.status(200).json({ data, columns })
 })
 
@@ -1004,12 +1050,16 @@ function getDate(date) {
  * @returns {Object} tsheets_data
  */
 async function getTsheetsData(job_codes, start, end, user_ids = []) {
+    // Data holder
     const tsheets_data = {}
+
+    // Convert c-track user ids to tsheets user ids
     if (user_ids.length) user_ids = user_ids.filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined)
+
+    // API call settings
     let job_code_cache = {} //tsid:db id
-    let loop = true, failed = false
-    let page = 1
-    do {
+    let loop = true, failed = false, page = 1
+    do { // Loop until break is called (no more data)
         let ts_call = await axios.get(`https://rest.tsheets.com/api/v1/timesheets`, {
             params: {
                 user_ids: user_ids.join(','),
@@ -1021,25 +1071,35 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
                 Authorization: `Bearer ${tsheetsBearer}`
             }
         }).catch(er => { console.log(er); failed = true })
+
+        // Break if any errors
         if (failed) break;
         if (!ts_call.data.results) { failed = true; break; }
 
+        // Prepare for looping through results
         let sheets = ts_call.data.results.timesheets
-
         if (ts_call.data.more) page++
         else loop = false
 
         for (let ind in sheets) {
+            // Decompose entry
             let i = sheets[ind]
             let d = i.date
             let uid = TSheetsUIDtoUID[`${i.user_id}`] // check data type, the key is string, key[id] is Number
             i.localUid = uid
+
+            // Check if user has data already, otherwise add it
             if (!tsheets_data[d]) tsheets_data[d] = {}
             if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
+
+            // Make sure the job code field is populated
             if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid: ${uid}'s entry with id of ${i.id}\n${i.customfields.map((val, key) => `${key}: ${val}`).join(', ')}`); continue }
+
+            // Try to get job code name from cache
             let jc_name = i.customfields['1164048'].split(':').splice(1).join(':').replace(/[:-\s]/gi, '').toLowerCase()
             if (!jc_name) { console.log(`Missing jc_name from uid: ${uid}'s entry with id of ${i.id}`); continue }
             if (job_code_cache[`${jc_name}`]) i.jobCode = job_code_cache[`${jc_name}`]
+            // If its not in cache, search through all job codes to find it, then add to cache
             else {
                 let f = false
                 for (let j in job_codes) {
@@ -1052,14 +1112,22 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
                 }
                 if (!f) i.jobCode = null
             }
+
+            // Get count from notes field. Should be in the format of "count Name <: optional comment>"
             i.count = i.notes ? i.notes.replace(/[^\d\w]/g, ' ').split(' ')[0] : 0
             if (isNaN(i.count)) i.count = 0
+
+            // Get hours from the duration (seconds -> hours)
             i.hours = i.duration / 3600
+
+            // Add data to tsheets_data under the date and user id
             tsheets_data[d][uid].timesheets.push(i)
         }
     } while (loop)
 
+    // If the loop ends and no data exists, return null
     if (Object.keys(tsheets_data).length == 0) return null
+    // Else return the data
     return tsheets_data
 }
 
@@ -1070,19 +1138,27 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
  *      }
  * }
  */
-function getSnipeData(start) {
+function getSnipeData(start, end = null) {
     return new Promise(async (res, rej) => {
         // Get current job codes and snipe ids
-        // TODO: These two might need to be flipped, no time today though
         const { jobIdToSnipe, snipeToJobId } = await getSnipeIds()
 
+        // Get start date
         let startD = new Date(start)
         const data = {}
-        let today = new Date().toISOString().split('T')[0]
-        data[today] = {}
-        while (startD < Date.now()) { data[startD.toISOString().split('T')[0]] = {}; startD.setDate(startD.getDate() + 1) }
+
+        // Get end date (today is default)
+        let end = end ? new Date(end) : new Date()
+
+        // Populate data with keys for each day
+        while (startD < end) { data[startD.toISOString().split('T')[0]] = {}; startD.setDate(startD.getDate() + 1) }
+        end = end.toISOString().split('T')[0]
+        data[end] = {}
+
+        // Reset start date back to its original value (days were added in loop above)
         startD = new Date(start)
 
+        // Prepare for loop
         let offset = 0, cont = true
         while (cont) {
             // Get data
@@ -1096,22 +1172,40 @@ function getSnipeData(start) {
 
             // Sort Data
             for (let i of d) {
+                // Get UID and date of snipe entry
                 let uid = snipeToUID[i.admin.id]
                 let day = new Date(i.updated_at.datetime).toISOString().split('T')[0]
+
+                // If user doesnt exist, skip
                 if (!uid) continue
+
+                // If the day is outside of range, skip
                 if (day < startD || !data[day]) continue
+
+                // If there is no status change (meaning something other than status was updated), skip
                 if (!i.log_meta || !i.log_meta.status_id) continue
                 let change = i.log_meta.status_id.new
                 if (!change) continue
+
+                // Get C-track job code
                 change = snipeToJobId[change]
+
+                // Get asset tag from snipe entry
                 let assetTag = i.item.name.replace(/\(20..\)/g, '').match(/\((.*)\)/g)
+
+                // Above returns an array of matches, so skip if there were no matches
                 if (assetTag.length == 0) continue
+
+                // Get the first match and remove parentheses, should only be 1 match
                 assetTag = assetTag[0].replace(/[\(\)]/g, '')
+
+                // Add data to data object and create new path if the path doesnt exist already
                 if (!data[day][uid]) data[day][uid] = {}
                 if (!data[day][uid][change]) data[day][uid][change] = [assetTag]
                 else data[day][uid][change].push(assetTag)
             }
         }
+        // Return the promise with data
         res(data)
     })
 }

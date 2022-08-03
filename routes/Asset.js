@@ -798,6 +798,7 @@ Router.post('/alter', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
+    // Get column data
     const { COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE } = req.body
 
     let q = await pool.request().query(`ALTER TABLE assets ALTER COLUMN ${COLUMN_NAME} ${DATA_TYPE}${CHARACTER_MAXIMUM_LENGTH ? `(${CHARACTER_MAXIMUM_LENGTH})` : ''}${IS_NULLABLE ? ' NULL' : ''}`)
@@ -820,6 +821,7 @@ Router.delete('/alter', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
+    // Get column to delete from params
     const column = req.query.column
 
     let q = await pool.request().query(`ALTER TABLE assets DROP COLUMN ${column}`)
@@ -842,6 +844,7 @@ Router.put('/alter', async (req, res) => {
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
+    // Get column data
     const { COLUMN_NAME, DATA_TYPE, CHARACTER_MAXIMUM_LENGTH, IS_NULLABLE } = req.body
 
     let q = await pool.request().query(`ALTER TABLE assets ADD ${COLUMN_NAME} ${DATA_TYPE}${CHARACTER_MAXIMUM_LENGTH ? `(${CHARACTER_MAXIMUM_LENGTH})` : ''}${IS_NULLABLE ? ' NULL' : ''}`)
