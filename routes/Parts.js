@@ -202,7 +202,7 @@ Router.put('/mgmt/part/create', async (req, res) => {
     if (issues.length) return res.status(400).json({ message: issues.join('\n') })
 
     // Query the DB
-    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,model_number,image,minimum_stock) VALUES ('${part}','${type}','${model}',${image ? `${image}` : 'NULL'},${m_stock})`)
+    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,model_number,image,minimum_stock) VALUES ('${part}','${type}','${model}',${image ? `'${image}'` : 'NULL'},${m_stock})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
