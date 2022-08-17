@@ -100,11 +100,11 @@ Router.get('/mgmt', async (req, res) => {
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
     // Get unique part counts
-    let parts = await pool.request().query(`SELECT model_number,alt_models FROM part_list`)
+    let parts = await pool.request().query(`SELECT models FROM part_list`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (parts.isErrored) return res.status(500).json({ message: 'Error', error: parts.error })
     for (let i = 0; i < q.recordset.length; i++) {
-        q.recordset[i].part_count = parts.recordset.filter(p => p.model_number === q.recordset[i].model_number || (p.alt_models && p.alt_models.split(',').includes(q.recordset[i].model_number))).length
+        q.recordset[i].part_count = parts.recordset.filter(p => p.models.split(',').includes(q.recordset[i].model_number)).length
     }
 
     // Return Data
@@ -157,7 +157,7 @@ Router.get('/mgmt/model', async (req, res) => {
     let q = await pool.request().query(`SELECT * FROM part_list`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(400).json({ message: 'Invalid Model' })
-    q.recordset = q.recordset.filter(m => m.model_number == model || (m.alt_models && m.alt_models.split(',').includes(model)))
+    q.recordset = q.recordset.filter(m => m.models.split(',').includes(model))
 
     let manufacturer = await pool.request().query(`SELECT manufacturer FROM models WHERE model_number = '${model}'`)
         .then(m => m.recordset && m.recordset.length && m.recordset[0].manufacturer ? m.recordset[0].manufacturer : null)
@@ -197,12 +197,12 @@ Router.put('/mgmt/part/create', async (req, res) => {
     let issues = []
     if (!part) issues.push('Missing Part Number')
     if (!type) issues.push('Missing part type')
-    if (!model) issues.push('Missing Model')
+    if (!model || !model.length) issues.push('Missing Model')
 
     if (issues.length) return res.status(400).json({ message: issues.join('\n') })
 
     // Query the DB
-    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,model_number,image,minimum_stock) VALUES ('${part}','${type}','${model}',${image ? `'${image}'` : 'NULL'},${m_stock})`)
+    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,models,image,minimum_stock) VALUES ('${part}','${type}','${model.join(',')}',${image ? `'${image}'` : 'NULL'},${m_stock})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
@@ -228,14 +228,15 @@ Router.post('/mgmt/part/edit', async (req, res) => {
     if (!model) issues.push('Missing model')
     if (!value && change !== 'image') issues.push('Missing value')
     if (!id) issues.push('Missing id')
+    if (change == 'alt_models' && !change.length) issues.push('Invalid value for alt_models')
 
-    const changeToDB = { 'type': 'part_type', 'part': 'part_number', 'image': 'image', 'alt_models': 'alt_models', 'm_stock': 'minimum_stock' }
+    const changeToDB = { 'type': 'part_type', 'part': 'part_number', 'image': 'image', 'alt_models': 'models', 'm_stock': 'minimum_stock' }
     if (!changeToDB[change]) issues.push('Unknown change type')
 
     if (issues.length) return res.status(400).json({ message: issues.join('\n') })
 
     // Query the DB
-    let q = await pool.request().query(`UPDATE part_list SET ${changeToDB[change]} = ${value ? `'${value}'` : 'NULL'} WHERE id = ${id}`)
+    let q = await pool.request().query(`UPDATE part_list SET ${changeToDB[change]} = ${value ? `'${change == 'alt_models' ? value.join(',') : value}'` : 'NULL'} WHERE id = ${id}`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
@@ -360,10 +361,10 @@ Router.get('/inventory', async (req, res) => {
     if (mq.isErrored) return res.status(500).json({ message: 'Error', error: mq.error })
     mq.forEach(m => models.add(m.model_number))
 
-    let ap_q = await pool.request().query(`SELECT * FROM part_list WHERE alt_models IS NOT NULL`)
+    let ap_q = await pool.request().query(`SELECT models FROM part_list`)
         .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (ap_q.isErrored) return res.status(500).json({ message: 'Error', error: ap_q.error })
-    ap_q.forEach(m => m.alt_models.split(',').forEach(z => models.add(z)))
+    ap_q.forEach(m => m.models.split(',').forEach(z => models.add(z)))
 
     let u_q = await pool.request().query(`SELECT id,name FROM users`)
         .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
@@ -455,7 +456,7 @@ Router.get('/log/asset', async (req, res) => {
     let q = await pool.request().query(`SELECT * FROM part_list`)
         .then(m => m.recordset).catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Failed to get part list' })
-    q = q.filter(m => m.model_number == model || (m.alt_models && m.alt_models.split(',').includes(model)))
+    q = q.filter(m => m.models.split(',').includes(model))
 
     // Return Data
     return res.status(200).json(q)
@@ -490,7 +491,7 @@ Router.post('/log', async (req, res) => {
     let p_ids = await pool.request().query(`SELECT * FROM part_list WHERE part_type = '${part}'`)
         .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
     if (!p_ids.length || p_ids.isErrored) return res.status(400).json({ er: p_ids.er, message: `Failed to find parts under: ${model}` })
-    p_ids = p_ids.filter(m => m.model_number == model || (m.alt_models && m.alt_models.split(',').includes(model)))
+    p_ids = p_ids.filter(m =>  m.models.split(',').includes(model))
 
     let o_q = await pool.request().query(`SELECT * FROM parts WHERE location IS NULL AND (${p_ids.map(m => `part_id = '${m.id}'`).join(' OR ')})`)
         .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
@@ -568,7 +569,7 @@ Router.get('/log', async (req, res) => {
         let sup_q = await pool.request().query(`SELECT * FROM part_list WHERE ${parts.map(m => `id = '${m}'`).join(' OR ')}`)
             .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
         if (sup_q.isErrored) return res.status(200).json({ data: q })
-        for (let i of sup_q) part_id_info[i.id] = { type: i.part_type, model: i.model_number, part_number: i.part_number }
+        for (let i of sup_q) part_id_info[i.id] = { type: i.part_type, model: i.models.join(','), part_number: i.part_number }
     }
     return res.status(200).json({ data: q, part_id_info })
 })
