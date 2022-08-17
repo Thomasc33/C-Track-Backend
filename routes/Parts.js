@@ -192,17 +192,17 @@ Router.put('/mgmt/part/create', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Data Validation
-    const { part, type, model, image, m_stock } = req.body
+    const { part, type, alt_models, image, m_stock } = req.body
 
     let issues = []
     if (!part) issues.push('Missing Part Number')
     if (!type) issues.push('Missing part type')
-    if (!model || !model.length) issues.push('Missing Model')
+    if (!alt_models || !alt_models.length) issues.push('Missing Model')
 
     if (issues.length) return res.status(400).json({ message: issues.join('\n') })
 
     // Query the DB
-    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,models,image,minimum_stock) VALUES ('${part}','${type}','${model.join(',')}',${image ? `'${image}'` : 'NULL'},${m_stock})`)
+    let q = await pool.request().query(`INSERT INTO part_list (part_number,part_type,models,image,minimum_stock) VALUES ('${part}','${type}','${alt_models.join(',')}',${image ? `'${image}'` : 'NULL'},${m_stock})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ message: 'Error', error: q.error })
 
@@ -491,7 +491,7 @@ Router.post('/log', async (req, res) => {
     let p_ids = await pool.request().query(`SELECT * FROM part_list WHERE part_type = '${part}'`)
         .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
     if (!p_ids.length || p_ids.isErrored) return res.status(400).json({ er: p_ids.er, message: `Failed to find parts under: ${model}` })
-    p_ids = p_ids.filter(m =>  m.models.split(',').includes(model))
+    p_ids = p_ids.filter(m => m.models.split(',').includes(model))
 
     let o_q = await pool.request().query(`SELECT * FROM parts WHERE location IS NULL AND (${p_ids.map(m => `part_id = '${m.id}'`).join(' OR ')})`)
         .then(m => m.recordset).catch(er => { return { isErrored: true, er } })
