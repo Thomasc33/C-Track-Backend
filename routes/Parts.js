@@ -389,7 +389,7 @@ Router.get('/inventory', async (req, res) => {
         d.model = mod_q[0]
 
         // Get models parts
-        let p = parts.filter(a => a.model_number == m || (a.alt_models && a.alt_models.split(',').includes(m)))
+        let p = parts.filter(a => a.model_number == m || (a.models && a.models.split(',').includes(m)))
         d.parts = p
 
         // Get inventory for model
