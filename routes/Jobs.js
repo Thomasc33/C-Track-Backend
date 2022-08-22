@@ -16,6 +16,7 @@ const changeToColumn = {
     restricted_comments: 'restricted_comments',
     promptCount: 'prompt_count',
     snipe_id: 'snipe_id',
+    usageRule: 'usage_rule_group'
 }
 
 Router.get('/all', async (req, res) => {
@@ -23,7 +24,7 @@ Router.get('/all', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Query the DB
-    let asset_tracking = await pool.request().query(`SELECT * FROM jobs WHERE status_only IS NULL OR status_only = 0 ORDER BY is_hourly, requires_asset, job_code DESC`)
+    let asset_tracking = await pool.request().query(`SELECT * FROM usable_jobs ORDER BY is_hourly, requires_asset, job_code DESC`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
         // Check for specific errors
@@ -145,7 +146,10 @@ Router.post('/new', async (req, res) => {
     if (!isAdmin && !permissions.edit_jobcodes) return res.status(401).json({ error: 'User is not an administrator and doesnt have edit job codes perms' })
 
     // Get Data
-    const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal, statusOnly, restricted_comments, promptCount, snipe_id } = req.body
+    const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal, statusOnly, restricted_comments, promptCount, snipe_id, usageRuleGroup } = req.body
+
+    console.log(usageRuleGroup)
+    console.log(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments, prompt_count, snipe_id, usage_rule_group) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || ''}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments || ''}', '${promptCount ? '1' : '0'}', ${snipe_id}, ${usageRuleGroup && usageRuleGroup !== 'remove' ? `'${usageRuleGroup}'` : 'NULL'})`)
 
     // Data Validation
     let errored = false
@@ -158,7 +162,8 @@ Router.post('/new', async (req, res) => {
         errored = true
         issues.push('Job Name Not Provided')
     }
-    if (isNaN(parseInt(price)) || (typeof (price) == 'string' && price.replace(/.\d/gi, '') !== '')) {
+    if (!+price) {
+        console.log(+price)
         errored = true
         issues.push('Invalid Price or Price not type Int')
     }
@@ -166,7 +171,7 @@ Router.post('/new', async (req, res) => {
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
-    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments, prompt_count, snipe_id) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || ''}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments || ''}', '${promptCount ? '1' : '0'}', ${snipe_id})`)
+    let query = await pool.request().query(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments, prompt_count, snipe_id, usage_rule_group) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || ''}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments || ''}', '${promptCount ? '1' : '0'}', ${snipe_id}, ${usageRuleGroup && usageRuleGroup !== 'remove' ? `'${usageRuleGroup}'` : 'NULL'})`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors
@@ -224,29 +229,21 @@ Router.post('/edit', async (req, res) => {
         case 'snipe_id':
             if (value && isNaN(parseFloat(value))) errors.push('Price value was NaN')
             break;
-        case 'job_name':
-            //no further validation needed
-            break;
-        case 'job_code':
-            //no further validation needed
-            break;
-        case 'applies':
-            //no further validation needed
-            break;
-        case 'hourly_goal':
-            break;
-        case 'restricted_comments':
-            break;
+        case 'job_name': break;
+        case 'job_code': break;
+        case 'applies': break;
+        case 'hourly_goal': break;
+        case 'restricted_comments': break;
+        case 'usageRule': break;
         default:
             errors.push('Unknown change type')
             break;
     }
     if (errors.length > 0) return res.status(400).json({ errors })
-
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = ${!value ? 'NULL' : `'${change == 'isHourly' || change == 'isAsset' || change == 'statusOnly' || change == 'promptCount' ? value.toLowerCase() == 'true' ? '1' : '0' : value}'`} WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly or isAsset or statusOnly
+    let query = await pool.request().query(`UPDATE jobs SET ${changeToColumn[change]} = ${!value ? 'NULL' : `'${change == 'isHourly' || change == 'isAsset' || change == 'statusOnly' || change == 'promptCount' ? value.toLowerCase() == 'true' ? '1' : '0' : change == 'usageRule' && value == 'remove' ? 'NULL' : value}'`} WHERE id = ${id}`) //changes true/false to 1/0 if change type = isHourly or isAsset or statusOnly
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (query.isErrored) {
         // Check for specific errors

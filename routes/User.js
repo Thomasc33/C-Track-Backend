@@ -206,17 +206,32 @@ Router.post('/management/edit/title', async (req, res) => {
     if (!isAdmin && (!permissions || !permissions.edit_users)) return res.status(401).json({ error: 'Forbidden' })
 
     // Data validation
-    const { id, title } = req.body
+    const { id, title, perms } = req.body
     if (!id || isNaN(parseInt(id))) return res.status(400).json({ error: 'Invalid UID provided' })
     if (!title || title.length >= 50) return res.status(400).json({ error: 'Invalid Title' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
-    // Query
+    // Update Title
     let resu = await pool.request().query(`UPDATE users SET title = '${title.replace("'", '')}' WHERE id = '${id}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (resu.isErrored) return res.status(500).json({ error: resu.error })
+
+    // Update permissions
+    if (perms) {
+        let permsList = await pool.request().query(`SELECT * FROM user_permissions where id = '${id}'`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (permsList.isErrored) return res.status(500).json({ error: permsList.error })
+        if (permsList.recordset.length < 1) return res.status(500).json({ error: 'User not found' })
+
+        permsList = Object.keys(permsList.recordset[0])
+        permsList.splice(permsList.indexOf('id'), 1)
+        let changeString = permsList.map(m => `${m} = ${perms.includes(m) ? "'1'" : "'0'"}`).join(', ')
+        let res2 = await pool.request().query(`UPDATE user_permissions SET ${changeString} WHERE id = '${id}'`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (res2.isErrored) return res.status(500).json({ error: res2.error })
+    }
 
     return res.status(200).json({ message: 'Success' })
 })
