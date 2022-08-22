@@ -10,11 +10,13 @@ const typeOfs = {
     asset: 'asset',
     notes: 'null',
     job: 'int',
+    branch: 'null',
 }
 const typeOfToColumn = {
     asset: 'asset_id',
     notes: 'notes',
     job: 'job_code',
+    branch: 'branch',
 }
 
 Router.get('/user', async (req, res) => {
@@ -64,7 +66,7 @@ Router.post('/user/new', async (req, res) => {
 
     // Get Params
     const data = req.body;
-    let { date, job_code, asset_id, notes, multiple } = data
+    let { date, job_code, asset_id, notes, multiple, branch } = data
 
     // Check if editing others
     if (data.uid) {
@@ -94,6 +96,8 @@ Router.post('/user/new', async (req, res) => {
         errored = true
         issues.push('Asset ID not provided')
     }
+    // if (branch) validate branch code somehow?
+
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
     // Valdiate Job Code
@@ -102,11 +106,35 @@ Router.post('/user/new', async (req, res) => {
     if (job_code_query.isErrored) return res.status(500).json(job_code_query.er)
     if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(400).json({ message: `Invalid job code '${job_code}'` })
 
-    let asset_query = await pool.request().query(`SELECT id,locked,hold_type,model_number FROM assets WHERE id = '${asset_id}'`)
+    // Get Asset Info
+    let asset_query = await pool.request().query(`SELECT id,locked,hold_type,model_number,status FROM assets WHERE id = '${asset_id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (asset_query.isErrored) return res.status(500).json(asset_query.er)
     if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_id}'` })
     if (asset_query.recordset[0].locked) return res.status(403).json({ message: 'Asset is Locked' })
+
+    // Check job code rules
+    let ruleGroup = job_code_query.recordset[0].usage_rule_group
+    if (ruleGroup) {
+        let currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${asset_query.recordset[0].status}'`)
+            .catch(er => { return { isErrored: true, er: er } })
+        if (currentJobCode.isErrored) return res.status(500).json(currentJobCode.er)
+        let currentJobType = currentJobCode.recordset[0].usage_rule_group
+        let error = checkRuleGroup(ruleGroup, currentJobType, asset_id)
+
+        if (error) {
+            let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`)
+                .catch(er => { return { isErrored: true, er: er } })
+            if (previousRecord.isErrored) return res.status(500).json(previousRecord.er)
+
+            if (previousRecord.recordset.length) {
+                previousRecord.recordset[0].job = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${previousRecord.recordset[0].job_code}'`).then(m => m.recordset[0].job_name)
+                previousRecord.recordset[0].user = await pool.request().query(`SELECT name FROM users WHERE id = '${previousRecord.recordset[0].user_id}'`).then(m => m.recordset[0].name)
+            }
+
+            return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
+        }
+    }
 
     let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
         .catch(er => { return { isErrored: true, er: er } })
@@ -120,24 +148,35 @@ Router.post('/user/new', async (req, res) => {
     }
 
     // Send to DB
-    let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]) VALUES ${commentArray.map(m => `('${uid}', '${asset_id}', '${job_code}', '${date}', ${m ? `'${m}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP))`).join(', ')}`)
+    let result = await pool.request().query(`INSERT INTO asset_tracking ([user_id], [asset_id], [job_code], [date], [notes], [time]${branch ? ', [branch]' : ''}) VALUES ${commentArray.map(m => `('${uid}', '${asset_id}', '${job_code}', '${date}', ${m ? `'${m}'` : 'null'}, CONVERT(TIME, CURRENT_TIMESTAMP)${branch ? `, '${branch}'` : ''})`).join(', ')}`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
     }
 
-    // Return
+    // Ack Success
     res.status(200).json({ message: 'Success' })
+
+    // If branch, update asset location
+    if (branch) {
+        let update = await pool.request().query(`UPDATE assets SET location = '${branch}' WHERE id = '${asset_id}'`)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (update.isErrored) {
+            console.log(update.error)
+        }
+    }
+
+    // If checkin job code, set location to MDCentric
+    if (ruleGroup == 'chkn') pool.request().query(`UPDATE assets SET location = 'MDCentric' WHERE id = '${asset_id}'`)
+
+    // If decom job code, set location to MDCentric
+    if (ruleGroup == 'decom') pool.request().query(`UPDATE assets SET location = 'DECOMMISSIONED', locked = 1 WHERE id = '${asset_id}'`)
 
     // Edit asset and set status
     pool.request().query(`UPDATE assets SET status = '${job_code}' WHERE id = '${asset_id}'`)
 
-    let status_name_query = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${job_code}'`)
-        .catch(er => { return { isErrored: true, er: er } })
-    if (status_name_query.isErrored) return
-
-    notifications.notify(req.headers.authorization, asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
-    if (asset_query.recordset[0].hold_type) notifications.hold_notify(asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
+    notifications.notify(req.headers.authorization, asset_id, job_code_query.recordset[0].job_name || job_code)
+    if (asset_query.recordset[0].hold_type) notifications.hold_notify(asset_id, job_code_query.recordset[0].job_name || job_code)
 })
 
 Router.post('/user/edit', async (req, res) => {
@@ -181,25 +220,52 @@ Router.post('/user/edit', async (req, res) => {
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
     if (!typeOfToColumn[change]) return res.status(500).json({ message: 'Unsuccessful', issues: 'Unknown column name to change' })
 
+    // Get asset ID
+    let asset_tracker_to_id_query = await pool.request().query(`SELECT asset_id FROM asset_tracking WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, er: er } })
+    if (asset_tracker_to_id_query.isErrored) return res.status(500).json(asset_tracker_to_id_query.er)
+    if (!asset_tracker_to_id_query.recordset || !asset_tracker_to_id_query.recordset[0]) return res.status(500).json({ message: `Asset id not found in history of '${id}'` })
+
+    asset_id = asset_tracker_to_id_query.recordset[0].asset_id
+    let usageRuleGroup
     // Valdiate Job Code
     if (change == 'job') {
+        // Get Job code Info
         let job_code_query = await pool.request().query(`SELECT * FROM jobs WHERE id = ${value}`)
             .catch(er => { return { isErrored: true, er: er } })
         if (job_code_query.isErrored) return res.status(500).json(job_code_query.er)
         if (!job_code_query.recordset || !job_code_query.recordset[0]) return res.status(400).json({ message: `Invalid job code '${value}'` })
 
-        let asset_tracker_to_id_query = await pool.request().query(`SELECT asset_id FROM asset_tracking WHERE id = '${id}'`)
-            .catch(er => { return { isErrored: true, er: er } })
-        if (asset_tracker_to_id_query.isErrored) return res.status(500).json(asset_tracker_to_id_query.er)
-        if (!asset_tracker_to_id_query.recordset || !asset_tracker_to_id_query.recordset[0]) return res.status(500).json({ message: `Asset id not found in history of '${id}'` })
-
-        asset_id = asset_tracker_to_id_query.recordset[0].asset_id
-
-        let asset_query = await pool.request().query(`SELECT id, locked, model_number FROM assets WHERE id = '${asset_tracker_to_id_query.recordset[0].asset_id}'`)
+        // Get Asset Info
+        let asset_query = await pool.request().query(`SELECT id,locked,model_number,status FROM assets WHERE id = '${asset_id}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (asset_query.isErrored) return res.status(500).json(asset_query.er)
-        if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_tracker_to_id_query.recordset[0].asset_id}'` })
+        if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${asset_id}'` })
         if (asset_query.recordset[0].locked) return res.status(403).json({ message: 'Asset is Locked' })
+
+        // Check job code rules
+        let ruleGroup = job_code_query.recordset[0].usage_rule_group
+        usageRuleGroup = ruleGroup
+        if (ruleGroup) {
+            let currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${asset_query.recordset[0].status}'`)
+                .catch(er => { return { isErrored: true, er: er } })
+            if (currentJobCode.isErrored) return res.status(500).json(currentJobCode.er)
+            let currentJobType = currentJobCode.recordset[0].usage_rule_group
+            let error = checkRuleGroup(ruleGroup, currentJobType, asset_id)
+
+            if (error) {
+                let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`)
+                    .catch(er => { return { isErrored: true, er: er } })
+                if (previousRecord.isErrored) return res.status(500).json(previousRecord.er)
+
+                if (previousRecord.recordset.length) {
+                    previousRecord.recordset[0].job = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${previousRecord.recordset[0].job_code}'`).then(m => m.recordset[0].job_name)
+                    previousRecord.recordset[0].user = await pool.request().query(`SELECT name FROM users WHERE id = '${previousRecord.recordset[0].user_id}'`).then(m => m.recordset[0].name)
+                }
+
+                return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
+            }
+        }
 
         let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
             .catch(er => { return { isErrored: true, er: er } })
@@ -215,11 +281,39 @@ Router.post('/user/edit', async (req, res) => {
     }
     else if (change == 'asset') {
         // Validate asset exists and isnt locked
-        let asset_query = await pool.request().query(`SELECT id, locked FROM assets WHERE id = '${value}'`)
+        let asset_query = await pool.request().query(`SELECT id,locked,status FROM assets WHERE id = '${value}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (asset_query.isErrored) return res.status(500).json(asset_query.er)
         if (!asset_query.recordset || !asset_query.recordset[0]) return res.status(400).json({ message: `Asset id not found '${value}'` })
         if (asset_query.recordset[0].locked) return res.status(403).json({ message: 'Asset is Locked' })
+
+        // Get current jobcode
+        let currentJobCode = await pool.request().query(`SELECT job_code FROM asset_tracking WHERE id = '${id}'`).then(m => m.recordset[0].job_code)
+        let job_code_query = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = ${currentJobCode}`)
+
+        // Check job code rules
+        let ruleGroup = job_code_query.recordset[0].usage_rule_group
+        if (ruleGroup) {
+            let currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${asset_query.recordset[0].status}'`)
+                .catch(er => { return { isErrored: true, er: er } })
+            if (currentJobCode.isErrored) return res.status(500).json(currentJobCode.er)
+            let currentJobType = currentJobCode.recordset[0].usage_rule_group
+            let error = checkRuleGroup(ruleGroup, currentJobType, asset_id)
+
+            if (error) {
+                let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${value}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`)
+                    .catch(er => { return { isErrored: true, er: er } })
+
+                if (previousRecord.isErrored) return res.status(500).json(previousRecord.er)
+
+                if (previousRecord.recordset.length) {
+                    previousRecord.recordset[0].job = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${previousRecord.recordset[0].job_code}'`).then(m => m.recordset[0].job_name)
+                    previousRecord.recordset[0].user = await pool.request().query(`SELECT name FROM users WHERE id = '${previousRecord.recordset[0].user_id}'`).then(m => m.recordset[0].name)
+                }
+
+                return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
+            }
+        }
     }
 
     // Send to DB
@@ -234,13 +328,32 @@ Router.post('/user/edit', async (req, res) => {
 
     // Edit asset and set status
     if (change == 'job') {
-        pool.request().query(`UPDATE assets SET status = '${value}' WHERE id = '${id}'`)
+        let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0]).catch(er => { return undefined })
+        if (previousRecord && previousRecord.job_code) pool.request().query(`UPDATE assets SET status = '${previousRecord.job_code}' WHERE id = '${asset_id}'`)
+        if (previousRecord.id == id) {
+            if (usageRuleGroup == 'chkn') pool.request().query(`UPDATE assets SET location = 'MDCentric' WHERE id = '${asset_id}'`)
 
-        let status_name_query = await pool.request().query(`SELECT job_name FROM jobs WHERE id = ${value}`)
-            .catch(er => { return { isErrored: true, er: er } })
-        if (status_name_query.isErrored) return
+            let status_name_query = await pool.request().query(`SELECT job_name FROM jobs WHERE id = ${value}`)
+                .catch(er => { return { isErrored: true, er: er } })
+            if (status_name_query.isErrored) return
 
-        notifications.notify(req.headers.authorization, asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
+            notifications.notify(req.headers.authorization, asset_id, status_name_query && status_name_query.recordset[0] ? status_name_query.recordset[0].job_name : job_code)
+        }
+    }
+    if (change == 'asset') {
+        // Update old assets status to previous
+        let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0].job_code).catch(er => { return undefined })
+        if (previousRecord) pool.request().query(`UPDATE assets SET status = '${previousRecord}' WHERE id = '${asset_id}'`)
+
+        // Update new assets status to new
+        let currentJobCode = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE id = '${id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0].job_code).catch(er => { return undefined })
+        if (currentJobCode) pool.request().query(`UPDATE assets SET status = '${currentJobCode}' WHERE id = '${value}'`)
+        let jobName = await pool.request().query(`SELECT TOP 1 job_name FROM jobs WHERE id = '${currentJobCode}'`).then(m => m.recordset[0].job_name).catch(er => undefined)
+        notifications.notify(req.headers.authorization, value, jobName || currentJobCode)
+    }
+    if (change == 'branch') {
+        console.log(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`)
+        pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`);
     }
 })
 
@@ -270,6 +383,8 @@ Router.delete('/user/del', async (req, res) => {
     resu = await pool.request().query(`SELECT id FROM asset_tracking WHERE id = ${id}`).catch(er => { return `Invalid ID` })
     if (resu == 'Invalid ID') return res.status(400).json({ code: 400, message: 'Invalid ID or not found' })
 
+    let info = await pool.request().query(`SELECT * from asset_tracking WHERE id = ${id}`).then(m => m.recordset[0])
+
     let asset_tracking = await pool.request().query(`DELETE FROM asset_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_tracking.isErrored) {
@@ -280,7 +395,12 @@ Router.delete('/user/del', async (req, res) => {
     }
 
     // Return Data
-    return res.status(200).json({ message: 'Success' })
+    res.status(200).json({ message: 'Success' })
+
+    // Update old assets status to previous
+    let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${info.asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0].job_code)
+        .catch(er => { return undefined })
+    if (previousRecord) pool.request().query(`UPDATE assets SET status = '${previousRecord}' WHERE id = '${info.asset_id}'`)
 })
 
 Router.get('/fetch', async (req, res) => {
@@ -364,7 +484,6 @@ Router.get('/get', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get Data
-
     let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${search}' OR notes LIKE '%${search}%'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_query.isErrored) {
@@ -388,7 +507,7 @@ Router.get('/get', async (req, res) => {
         r = { type: 'asset', info: i }
 
         // Asset Status History Query
-        let history_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${r.info.id}' ORDER BY date DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+        let history_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${r.info.id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
         if (history_query.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
 
         if (!history_query.isErrored && history_query.recordset.length > 0) {
@@ -442,7 +561,7 @@ Router.get('/get', async (req, res) => {
         if (aq.recordset.length == 0) continue;
         let r = { type: 'tracker', info: aq.recordset[0] }
 
-        let hq = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${r.info.id}' ORDER BY date DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
+        let hq = await pool.request().query(`SELECT * FROM asset_tracking WHERE asset_id = '${r.info.id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).catch(er => { console.log(er); return { isErrored: true, error: er } })
         if (hq.isErrored) { return res.status(500).json({ message: 'Asset History Query Error' }) }
         if (!hq.isErrored && hq.recordset.length > 0) {
             let his = []
@@ -869,4 +988,28 @@ module.exports = Router
 function getDate(date) {
     date = new Date(date)
     return date.toISOString().split('T')[0]
+}
+
+function checkRuleGroup(ruleGroup, currentJobType, asset_id) {
+    switch (ruleGroup) {
+        case 'chkn':
+            if (currentJobType !== 'ship' && currentJobType !== 'new') return `Asset ${asset_id} is not at shipped/new status and can't be checked in`
+            if (currentJobType == 'chkn') return `Asset ${asset_id} is already at a check-in status and can't be checked in again`
+            break
+        case 'ship':
+            if (currentJobType == 'ckhn') return `Asset ${asset_id} is at ckhn status and can't be shipped until deployed`
+            if (currentJobType == 'ship') return `Asset ${asset_id} is at shipped status and can't be shipped again`
+            break
+        case 'deploy':
+            if (currentJobType == 'ship') return `Asset ${asset_id} is in a ship status and can't be deployed until checked in`
+            if (currentJobType == 'deploy') return `Asset ${asset_id} is already at a deploy status and can't be deployed again`
+            break
+        case 'work':
+            if (currentJobType == 'ship') return `Asset ${asset_id} is in a ship status and can't be worked on until checked in`
+            if (currentJobType == 'new') return `Asset ${asset_id} is in a new status and can't be worked on until checked in`
+            break;
+        default:
+            console.log(`Default case hit for ${ruleGroup} rulegroup`)
+    }
+    return undefined
 }
