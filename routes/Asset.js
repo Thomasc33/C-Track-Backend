@@ -989,7 +989,7 @@ Router.get('/locations', async (req, res) => {
     // Get Data
     let q = await pool.request().query(`SELECT location FROM assets`).then(r => r.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (q.isErrored) return res.status(500).json({ code: 400, message: 'how' })
+    if (q.isErrored) return res.status(500).json({ message: 'how' })
     q = q.map(r => r.location.toUpperCase())
 
     let locations = {}
@@ -1013,11 +1013,11 @@ Router.post('/locations', async (req, res) => {
     // Get Data
     let q = await pool.request().query(`SELECT id,status,model_number FROM assets WHERE location = '${location}'`).then(r => r.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (q.isErrored) return res.status(500).json({ code: 500, message: 'how' })
+    if (q.isErrored) return res.status(500).json({ message: 'how' })
 
     let jc = await pool.request().query(`SELECT job_name,id FROM jobs`).then(r => r.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (jc.isErrored) return res.status(500).json({ code: 500, message: 'how' })
+    if (jc.isErrored) return res.status(500).json({ message: 'how' })
 
     let jobs = {}
     for (let i of jc) jobs[i.id] = i.job_name
