@@ -990,7 +990,7 @@ Router.get('/locations', async (req, res) => {
     let q = await pool.request().query(`SELECT location FROM assets`).then(r => r.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ code: 400, message: 'how' })
-    q = q.map(r => r.location)
+    q = q.map(r => r.location.toUpperCase())
 
     let locations = {}
 
