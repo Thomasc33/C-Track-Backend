@@ -145,8 +145,7 @@ Router.post('/new', async (req, res) => {
     if (!model_name) issues.push('Model Name Not Provided')
     if (!manufacturer) issues.push('Manufacturer Not Provided')
     if (!category) issues.push('Category not provided')
-    if (category) for (let i of category.split(','))
-        if (!require('../settings.json').deviceTypes.includes(i)) issues.push("Category not recognized")
+    if (category) for (let i of category.split(',')) if (!require('../settings.json').deviceTypes.includes(i)) issues.push(`Category "${i}" not recognized`)
 
     if (issues.length > 0) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
