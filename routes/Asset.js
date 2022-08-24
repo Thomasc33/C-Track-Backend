@@ -978,6 +978,55 @@ Router.put('/alter', async (req, res) => {
     return res.status(200).json({ data: 'Success' })
 })
 
+Router.get('/locations', async (req, res) => {
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get Data
+    let q = await pool.request().query(`SELECT location FROM assets`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ code: 400, message: 'how' })
+    q = q.map(r => r.location)
+
+    let locations = {}
+
+    for (let i of q) if (!locations[i]) locations[i] = 1; else locations[i]++
+
+    return res.status(200).json({ data: locations })
+})
+
+Router.post('/locations', async (req, res) => {
+    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+
+    // Get Location from body
+    const { location } = req.body
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get Data
+    let q = await pool.request().query(`SELECT id,status,model_number FROM assets WHERE location = '${location}'`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ code: 500, message: 'how' })
+
+    let jc = await pool.request().query(`SELECT job_name,id FROM jobs`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (jc.isErrored) return res.status(500).json({ code: 500, message: 'how' })
+
+    let jobs = {}
+    for (let i of jc) jobs[i.id] = i.job_name
+    for (let i of q) i.status = jobs[i.status]
+
+    return res.status(200).json({ data: q })
+})
+
+
 module.exports = Router
 
 /**
