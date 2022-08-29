@@ -557,7 +557,7 @@ Router.get('/excel', async (req, res) => {
     } else { start = range, end = date } // Report with range
 
     // Start the snipe 
-    const snipeData = await getSnipeData(start)
+    const snipeData = null//await getSnipeData(start)
 
     // Get Asset and Houly Data
     let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${range}' AND date <= '${date}'` : `date = '${date}'`}`)
@@ -1064,7 +1064,7 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
             params: {
                 user_ids: user_ids.join(','),
                 start_date: start,
-                jobcode_ids: 61206982, // CURO's customer id
+                jobcode_ids: require('../settings.json').tsheets.GentivaCustomerID, // CURO's customer id
                 end_date: end || undefined,
                 page: page
             }, headers: {
