@@ -130,11 +130,15 @@ Router.post('/user/new', async (req, res) => {
             if (previousRecord.isErrored) return res.status(500).json(previousRecord.er)
 
             if (previousRecord.recordset.length) {
-                previousRecord.recordset[0].job = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${previousRecord.recordset[0].job_code}'`).then(m => m.recordset[0].job_name)
+                let status
+                previousRecord.recordset[0].job = await pool.request().query(`SELECT job_name,id FROM jobs WHERE id = '${previousRecord.recordset[0].job_code}'`).then(m => { status = m.recordset[0].id; return m.recordset[0].job_name })
                 previousRecord.recordset[0].user = await pool.request().query(`SELECT name FROM users WHERE id = '${previousRecord.recordset[0].user_id}'`).then(m => m.recordset[0].name)
-            }
 
-            return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
+                currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${status}'`)
+                currentJobType = currentJobCode.recordset[0].usage_rule_group
+                error = checkRuleGroup(ruleGroup, currentJobType, asset_id)
+                if (error) return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
+            } else return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
         }
     }
 
@@ -261,11 +265,16 @@ Router.post('/user/edit', async (req, res) => {
                 if (previousRecord.isErrored) return res.status(500).json(previousRecord.er)
 
                 if (previousRecord.recordset.length) {
-                    previousRecord.recordset[0].job = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${previousRecord.recordset[0].job_code}'`).then(m => m.recordset[0].job_name)
+                    let status
+                    previousRecord.recordset[0].job = await pool.request().query(`SELECT job_name,id FROM jobs WHERE id = '${previousRecord.recordset[0].job_code}'`).then(m => { status = m.recordset[0].id; return m.recordset[0].job_name })
                     previousRecord.recordset[0].user = await pool.request().query(`SELECT name FROM users WHERE id = '${previousRecord.recordset[0].user_id}'`).then(m => m.recordset[0].name)
-                }
 
-                return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
+                    currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${status}'`)
+                    currentJobType = currentJobCode.recordset[0].usage_rule_group
+                    error = checkRuleGroup(ruleGroup, currentJobType, asset_id)
+                    console.log(error)
+                    if (error) return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
+                } else return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
             }
         }
 
