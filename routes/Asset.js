@@ -19,6 +19,8 @@ const typeOfToColumn = {
     branch: 'branch',
 }
 
+const allUserNonEditableFields = ['asset_id', 'status', 'model_number', 'watching', 'locked', 'hold_type']
+
 Router.get('/user', async (req, res) => {
     // Get UID from header
     let uid = await tokenParsing.toUID(req.headers.authorization)
@@ -616,11 +618,11 @@ Router.post('/edit', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
-    if (!isAdmin && !permissions.edit_assets) return res.status(401).json({ error: 'Permission denied' })
 
     //Get date from header
     const { id, change, value } = req.body
     let val = value.replace("'", '')
+    if (allUserNonEditableFields.includes(change.toLowerCase()) && !permissions.edit_assets) return res.status(400).json({ error: 'Cannot edit this field' })
 
     // Data validation
     let issues = []
