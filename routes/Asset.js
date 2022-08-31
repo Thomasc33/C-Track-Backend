@@ -165,7 +165,7 @@ Router.post('/user/new', async (req, res) => {
     res.status(200).json({ message: 'Success' })
 
     // If branch, update asset location
-    if (branch) {
+    if (branch && ruleGroup !== 'chkn') {
         let update = await pool.request().query(`UPDATE assets SET location = '${branch}' WHERE id = '${asset_id}'`)
             .catch(er => { console.log(er); return { isErrored: true, error: er } })
         if (update.isErrored) {
@@ -364,8 +364,9 @@ Router.post('/user/edit', async (req, res) => {
         notifications.notify(req.headers.authorization, value, jobName || currentJobCode)
     }
     if (change == 'branch') {
-        console.log(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`)
-        pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`);
+        let previousJob = await pool.request().query(`SELECT TOP 1 job_code FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0].job_code).catch(er => { return undefined })
+        if (previousJob) await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${previousJob}'`).then(m => { if (m.recordset && m.recordset[0].usage_rule_group !== 'chkn') pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`) })
+        else pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`);
     }
 })
 
@@ -526,7 +527,7 @@ Router.get('/get', async (req, res) => {
             let his = []
             for (let i of history_query.recordset) {
                 let name = usernames[i.user_id] || `UID: ${i.user_id}`
-                his.push({ name, job_code: i.job_code, date: i.date, time: i.time, id: i.id, notes: i.notes })
+                his.push({ name, job_code: i.job_code, date: i.date, time: i.time, id: i.id, notes: i.notes, branch: i.branch })
             }
             r.history = his
         }
