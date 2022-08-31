@@ -117,7 +117,7 @@ Router.post('/user/new', async (req, res) => {
 
     // Check job code rules
     let ruleGroup = job_code_query.recordset[0].usage_rule_group
-    if (ruleGroup) {
+    if (ruleGroup && !data.ruleOverride) {
         let currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${asset_query.recordset[0].status}'`)
             .catch(er => { return { isErrored: true, er: er } })
         if (currentJobCode.isErrored) return res.status(500).json(currentJobCode.er)
@@ -141,6 +141,7 @@ Router.post('/user/new', async (req, res) => {
             } else return res.status(400).json({ message: error, previousRecord: previousRecord.recordset.length ? previousRecord.recordset[0] : undefined, ruleViolation: true })
         }
     }
+
 
     let model_query = await pool.request().query(`SELECT * FROM models WHERE model_number = '${asset_query.recordset[0].model_number}'`)
         .catch(er => { return { isErrored: true, er: er } })
@@ -252,7 +253,7 @@ Router.post('/user/edit', async (req, res) => {
         // Check job code rules
         let ruleGroup = job_code_query.recordset[0].usage_rule_group
         usageRuleGroup = ruleGroup
-        if (ruleGroup) {
+        if (ruleGroup && !req.body.ruleOverride) {
             let currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${asset_query.recordset[0].status}'`)
                 .catch(er => { return { isErrored: true, er: er } })
             if (currentJobCode.isErrored) return res.status(500).json(currentJobCode.er)
@@ -304,7 +305,7 @@ Router.post('/user/edit', async (req, res) => {
 
         // Check job code rules
         let ruleGroup = job_code_query.recordset[0].usage_rule_group
-        if (ruleGroup) {
+        if (ruleGroup && !req.body.ruleOverride) {
             let currentJobCode = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${asset_query.recordset[0].status}'`)
                 .catch(er => { return { isErrored: true, er: er } })
             if (currentJobCode.isErrored) return res.status(500).json(currentJobCode.er)
@@ -631,7 +632,7 @@ Router.post('/edit', async (req, res) => {
     //Get date from header
     const { id, change, value } = req.body
     let val = value.replace("'", '')
-    if (allUserNonEditableFields.includes(change.toLowerCase()) && !permissions.edit_assets) return res.status(400).json({ error: 'Cannot edit this field' })
+    if (allUserNonEditableFields.includes(change.toLowerCase()) && !(permissions.edit_assets || isAdmin)) return res.status(400).json({ error: 'Cannot edit this field' })
 
     // Data validation
     let issues = []

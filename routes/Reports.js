@@ -557,7 +557,7 @@ Router.get('/excel', async (req, res) => {
     } else { start = range, end = date } // Report with range
 
     // Start the snipe 
-    const snipeData = null//await getSnipeData(start)
+    const snipeData = undefined//await getSnipeData(start)
 
     // Get Asset and Houly Data
     let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${range}' AND date <= '${date}'` : `date = '${date}'`}`)
