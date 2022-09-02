@@ -11,12 +11,14 @@ const typeOfs = {
     notes: 'null',
     job: 'int',
     branch: 'null',
+    time: 'time'
 }
 const typeOfToColumn = {
     asset: 'asset_id',
     notes: 'notes',
     job: 'job_code',
     branch: 'branch',
+    time: 'time'
 }
 
 const allUserNonEditableFields = ['asset_id', 'status', 'model_number', 'watching', 'locked', 'hold_type']
@@ -223,6 +225,12 @@ Router.post('/user/edit', async (req, res) => {
             break;
         case 'null': //no data validation
             break;
+        case 'time':
+            if (!value || value.replace(/\d{2}:\d{2}/g, '') !== '') {
+                errored = true;
+                issues.push('Invalid Time format')
+            }
+            break
     }
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
     if (!typeOfToColumn[change]) return res.status(500).json({ message: 'Unsuccessful', issues: 'Unknown column name to change' })
