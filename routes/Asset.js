@@ -505,7 +505,7 @@ Router.get('/get', async (req, res) => {
     let pool = await sql.connect(config)
 
     // Get Data
-    let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${search}' OR notes LIKE '%${search}%'`)
+    let asset_query = await pool.request().query(`SELECT * FROM assets WHERE id = '${search}' OR notes LIKE '%${search}%' or mobile_number LIKE '%${search}%' or icc_id LIKE '%${search}%' or return_reason LIKE '%${search}%'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (asset_query.isErrored) {
         // Check for specific errors
