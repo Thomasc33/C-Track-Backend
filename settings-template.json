@@ -14,7 +14,9 @@
         "clientId": "",
         "redirectURI": "",
         "clientSecret": "",
-        "token": ""
+        "token": "",
+        "GentivaCustomerID": "",
+        "CPOCID" : ""
     },
     "port": 80,
     "tenantId": "",
