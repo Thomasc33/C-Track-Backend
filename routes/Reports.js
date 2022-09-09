@@ -5,8 +5,9 @@ const axios = require('axios').default
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 const reportTunables = require('../data/reportTunables.json')
+const tsSettings = require('../settings.json').tsheets
 const SnipeBearer = require('../settings.json').snipeBearer
-const tsheetsBearer = require('../settings.json').tsheets.token
+const tsheetsBearer = tsSettings.token
 const snipeAPILink = 'https://cpoc.snipe-it.io/api/v1'
 const userIdToSnipe = require('../data/snipeUserConversion.json')
 const snipeToUID = Object.fromEntries(Object.entries(userIdToSnipe).map(a => a.reverse()))
@@ -596,7 +597,7 @@ Router.get('/excel', async (req, res) => {
     let prices = await getJobPrices()
 
     // Get Tsheets Data
-    const tsheets_data = await getTsheetsData(job_codes, start, end, [...applicableUsers])
+    const tsheets_data = await getTsheetsData(job_codes, start, end, [...applicableUsers], true)
 
     const data = [
         [{ value: 'Report Date' }],
@@ -857,15 +858,15 @@ Router.get('/excel', async (req, res) => {
         for (let i in d) if (![0, 1].includes(parseInt(i)) && i % 2 == 1) { for (let j in d[i]) if (!d[i][j].backgroundColor) d[i][j].backgroundColor = reportTunables.rowAlternatingColor }
 
         // If snipe data, compare snipe counts to tsheets counts
-        if (snipeData && snipeData[date] && snipeData[date][id]) {
-            for (let i in snipeData[date][id]) {
-                if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
-                    let ts_count = 0, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
-                    if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += parseInt(i.count) }
-                    discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
-                }
-            }
-        }
+        // if (snipeData && snipeData[date] && snipeData[date][id]) {
+        //     for (let i in snipeData[date][id]) {
+        //         if (!assetJobCodes.has(parseInt(i)) && !assetJobCodes.has(i)) {
+        //             let ts_count = 0, count = 0, snipe_count = snipeData[date][id][i].length, unique = snipeData[date][id][i].join(', ')
+        //             if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == i) { ts_count += parseInt(i.count) }
+        //             discrepancies[id].push({ jc: i, ts_count, count, snipe_count, date, unique })
+        //         }
+        //     }
+        // }
 
         // Calculate the 5 day revenue if report is a single day
         let fiveDayRevenue = 0.0
@@ -923,6 +924,15 @@ Router.get('/excel', async (req, res) => {
                 if (cols - 1 == j) d[i][j].rightBorderStyle = 'thick'
             }
         }
+
+        // Check for CPOC Billable Discrepancies
+        for (let today of dates) if (tsheets_data && tsheets_data[today] && tsheets_data[today][id]) for (let i of tsheets_data[today][id].timesheets) if (i.jobcode_id == tsSettings.CPOCID) {
+            let billable = i.customfields['1180404'] == 'Yes' ? true : false
+            let jc = i.customfields['1164048'].toLowerCase()
+            if (jc.includes('overhead') && billable) { discrepancies[id].push({ jc: i.customfields['1164048'], date: today, unique: `Billable Overhead` }) }
+            else if (jc.includes('professional development') && !billable) { discrepancies[id].push({ jc: i.customfields['1164048'], date: today, message: `Non-Billable PD` }) }
+        }
+
         return d
     }
 
@@ -947,9 +957,9 @@ Router.get('/excel', async (req, res) => {
         //jc, ts_count, count, snipe_count, date
         for (let i of discrepancies[id]) {
             d.push([
-                { value: job_codes[i.jc] ? job_codes[i.jc].name : `Job ID: ${i.jc}` },
+                { value: job_codes[i.jc] ? job_codes[i.jc].name : isNaN(+i.jc) ? i.jc : `Job ID: ${i.jc}` },
                 { value: i.date },
-                { value: i.count },
+                { value: i.count || '0' },
                 { value: i.ts_count || i.ts_hours || '0' },
                 { value: i.snipe_count || '0' },
                 { value: i.unique || '-', wrap: true }
@@ -1049,7 +1059,7 @@ function getDate(date) {
  * @param {Date} end The end date
  * @returns {Object} tsheets_data
  */
-async function getTsheetsData(job_codes, start, end, user_ids = []) {
+async function getTsheetsData(job_codes, start, end, user_ids = [], includeCPOC = false) {
     // Data holder
     const tsheets_data = {}
 
@@ -1064,7 +1074,7 @@ async function getTsheetsData(job_codes, start, end, user_ids = []) {
             params: {
                 user_ids: user_ids.join(','),
                 start_date: start,
-                jobcode_ids: require('../settings.json').tsheets.GentivaCustomerID, // CURO's customer id
+                jobcode_ids: includeCPOC ? [tsSettings.GentivaCustomerID, tsSettings.CPOCID].join(',') : tsSettings.GentivaCustomerID, // CURO's customer id
                 end_date: end || undefined,
                 page: page
             }, headers: {
