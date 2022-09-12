@@ -167,7 +167,7 @@ Router.post('/user/new', async (req, res) => {
     res.status(200).json({ message: 'Success' })
 
     // If branch, update asset location
-    if (branch && ruleGroup !== 'chkn') {
+    if (branch && ruleGroup == 'ship') {
         let update = await pool.request().query(`UPDATE assets SET location = '${branch}' WHERE id = '${asset_id}'`)
             .catch(er => { console.log(er); return { isErrored: true, error: er } })
         if (update.isErrored) {
@@ -236,10 +236,13 @@ Router.post('/user/edit', async (req, res) => {
     if (!typeOfToColumn[change]) return res.status(500).json({ message: 'Unsuccessful', issues: 'Unknown column name to change' })
 
     // Get asset ID
-    let asset_tracker_to_id_query = await pool.request().query(`SELECT asset_id FROM asset_tracking WHERE id = '${id}'`)
+    let asset_tracker_to_id_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE id = '${id}'`)
         .catch(er => { return { isErrored: true, er: er } })
     if (asset_tracker_to_id_query.isErrored) return res.status(500).json(asset_tracker_to_id_query.er)
     if (!asset_tracker_to_id_query.recordset || !asset_tracker_to_id_query.recordset[0]) return res.status(500).json({ message: `Asset id not found in history of '${id}'` })
+
+    let branch = asset_tracker_to_id_query.recordset[0].branch
+    let jc = asset_tracker_to_id_query.recordset[0].job_code
 
     asset_id = asset_tracker_to_id_query.recordset[0].asset_id
     let usageRuleGroup
@@ -298,6 +301,13 @@ Router.post('/user/edit', async (req, res) => {
                 if (model_query.recordset[0].category.split(',').includes(i)) compatable = true
             if (!compatable) return res.status(400).json({ message: `Job code '${value}' is not compatable with model '${asset_query.recordset[0].model_number}'` })
         }
+
+        // if usage rule group is ship and branch is set, update asset location
+        if (ruleGroup == 'ship' && branch) {
+            let asset_update = await pool.request().query(`UPDATE assets SET location = '${branch}' WHERE id = '${asset_id}'`)
+                .catch(er => { return { isErrored: true, er: er } })
+            if (asset_update.isErrored) return res.status(500).json(asset_update.er)
+        }
     }
     else if (change == 'asset') {
         // Validate asset exists and isnt locked
@@ -335,6 +345,15 @@ Router.post('/user/edit', async (req, res) => {
             }
         }
     }
+    else if (change == 'branch') {
+        // If usage rule group is ship, update asset location to change
+        let jc_usage = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${jc}'`).then(r => r.recordset[0]).catch(er => { console.log(er); return undefined })
+        if (jc_usage && jc_usage == 'ship') {
+            let asset_update = await pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`)
+                .catch(er => { return { isErrored: true, er: er } })
+            if (asset_update.isErrored) console.log(asset_update.er)
+        }
+    }
 
     // Send to DB
     let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${uid}'`)
@@ -370,11 +389,16 @@ Router.post('/user/edit', async (req, res) => {
         if (currentJobCode) pool.request().query(`UPDATE assets SET status = '${currentJobCode}' WHERE id = '${value}'`)
         let jobName = await pool.request().query(`SELECT TOP 1 job_name FROM jobs WHERE id = '${currentJobCode}'`).then(m => m.recordset[0].job_name).catch(er => undefined)
         notifications.notify(req.headers.authorization, value, jobName || currentJobCode)
-    }
-    if (change == 'branch') {
-        let previousJob = await pool.request().query(`SELECT TOP 1 job_code FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0].job_code).catch(er => { return undefined })
-        if (previousJob) await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${previousJob}'`).then(m => { if (m.recordset && m.recordset[0].usage_rule_group !== 'chkn') pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`) })
-        else pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`);
+
+        // If this has a branch, and the new asset has a ship rule, update the branch
+        if (branch) {
+            let jc_usage = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${jc}'`).then(r => r.recordset[0]).catch(er => { console.log(er); return undefined })
+            if (jc_usage && jc_usage == 'ship') {
+                let asset_update = await pool.request().query(`UPDATE assets SET location = '${branch}' WHERE id = '${value}'`)
+                    .catch(er => { return { isErrored: true, er: er } })
+                if (asset_update.isErrored) console.log(asset_update.er)
+            }
+        }
     }
 })
 
