@@ -719,7 +719,7 @@ Router.get('/excel', async (req, res) => {
             if (hrly_revenue == Infinity) hrly_revenue = 0
 
             // Discrepancy check
-            if (job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count) || count !== snipe_count) discrepancies[id].push({ jc, ts_count, count, snipe_count, date, unique })
+            if (job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count)) discrepancies[id].push({ jc, ts_count, count, date, unique })
 
             d.push([{ value: job_codes[jc].name, rightBorderStyle: 'thin', },
             { value: Array.from(job_price).join(','), rightBorderStyle: 'thin', },
@@ -777,7 +777,7 @@ Router.get('/excel', async (req, res) => {
                             if (ts_hours) i[2].value = ts_hours
                             else ts_hours += i[2].value
                             // If tsheets hours doesnt match c-track hours, add it to discrepancy list
-                            if (ts_hours != count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date, snipe_count: '-' })
+                            if (ts_hours != count) discrepancies[id].push({ jc: `${jc} (Hourly)`, ts_hours, count, date })
                             // Choose the highest revenue, one should be 0
                             if (i[6].value < revenue) i[6].value = revenue
                             // Replace blank cell with updated hourly revenue
@@ -792,7 +792,7 @@ Router.get('/excel', async (req, res) => {
                                 if (i.jc == complimentaryJC) {
                                     discrepancies[id][ind].ts_count = ts_count
                                     // If it was falsely marked as a discrepancy, remove it from the discrepancy list
-                                    if (i.count == i.snipe_count && i.count == ts_count) discrepancies[id].splice(ind, 1)
+                                    if (i.count == ts_count) discrepancies[id].splice(ind, 1)
                                 }
                             }
                             return
@@ -800,7 +800,7 @@ Router.get('/excel', async (req, res) => {
                     }
                 }
                 //discrepancy check
-                if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date, snipe_count: '-' })
+                if (ts_hours !== count) discrepancies[id].push({ jc, ts_hours, count, date })
 
                 // Add hours and counts to total
                 tot_ts_hours += ts_hours
@@ -951,17 +951,16 @@ Router.get('/excel', async (req, res) => {
         }
 
         d.push([{ fontSize: 24, value: usernames[id] || id }, { value: 'Discrepancy Report' }], [])
-        d.push([{ value: 'Job Code' }, { value: 'Date' }, { value: 'C-Track Count' }, { value: 'T-Sheets Count' }, { value: 'Snipe Count' }, { value: 'Unique Assets (Comma Seperated)', wrap: true }])
+        d.push([{ value: 'Job Code' }, { value: 'Date' }, { value: 'C-Track Count' }, { value: 'T-Sheets Count' }, { value: 'Unique Assets (Comma Seperated)', wrap: true }])
 
         //{id:[discrepancies]}
-        //jc, ts_count, count, snipe_count, date
+        //jc, ts_count, count, date
         for (let i of discrepancies[id]) {
             d.push([
                 { value: job_codes[i.jc] ? job_codes[i.jc].name : isNaN(+i.jc) ? i.jc : `Job ID: ${i.jc}` },
                 { value: i.date },
                 { value: i.count || '0' },
                 { value: i.ts_count || i.ts_hours || '0' },
-                { value: i.snipe_count || '0' },
                 { value: i.unique || '-', wrap: true }
             ])
         }
