@@ -652,6 +652,9 @@ Router.get('/excel', async (req, res) => {
         let totalrevenue = 0.0
         let totalhours = 0.0
 
+        // Work around for complimentary JC not counting
+        let hrlyCountedComplimentaryJC = []
+
         // Iterate through each asset job code
         assetJobCodes.forEach(jc => {
             // Count variables
@@ -703,7 +706,8 @@ Router.get('/excel', async (req, res) => {
 
             // Add revenue and hours to totals
             totalrevenue += revenue
-            if (!complimentaryJC) totalhours += ts_hours
+            totalhours += ts_hours
+            if (complimentaryJC) hrlyCountedComplimentaryJC.push(complimentaryJC)
 
             // Divide revenue among days
             if (!days) days = 1
@@ -732,7 +736,7 @@ Router.get('/excel', async (req, res) => {
             if (range) d[d.length - 1].push({ value: revenue / days, rightBorderStyle: 'thin', })
             d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
         })
-
+        
         // Iterate through all hourly job codes
         hourlyJobCodes.forEach(jc => {
             //count totals
@@ -747,8 +751,12 @@ Router.get('/excel', async (req, res) => {
                 let p = getPriceFromDate(prices, date, jc)
                 job_price.add(p)
 
+                // Complimentary job code
+                let complimentaryJC
+                for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
+
                 // If tsheets data exists, add it to the count
-                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}`) {
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || (complimentaryJC && i.jobCode == complimentaryJC)) {
                     ts_hours += i.hours;
                     ts_count += parseInt(i.count);
                     tsheetsVisited.add(i.id)
@@ -760,13 +768,11 @@ Router.get('/excel', async (req, res) => {
                 // Calculate revenue
                 revenue += ts_hours ? parseFloat(p) * parseFloat(ts_hours) : parseFloat(p) * parseFloat(count)
                 totalrevenue += revenue
-                totalhours += ts_hours ? ts_hours : count
+                if (!hrlyCountedComplimentaryJC.includes(jc)) totalhours += ts_hours ? ts_hours : count
                 hrly_revenue = p
 
                 // If job code logs both hourly and assets
                 if (JobCodePairsSet.has(jc)) {
-                    let complimentaryJC
-                    for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
                     if (complimentaryJC) for (let i of d) {
                         if (i.length < 6) continue // Ignore the wrong row
                         // If names match (final check to make sure job codes are the same)
