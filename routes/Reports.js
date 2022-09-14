@@ -558,7 +558,7 @@ Router.get('/excel', async (req, res) => {
     } else { start = range, end = date } // Report with range
 
     // Start the snipe 
-    const snipeData = undefined//await getSnipeData(start)
+    // const snipeData = await getSnipeData(start)
 
     // Get Asset and Houly Data
     let asset_tracking_query = await pool.request().query(`SELECT * FROM asset_tracking WHERE ${range ? `date >= '${range}' AND date <= '${date}'` : `date = '${date}'`}`)
@@ -666,7 +666,7 @@ Router.get('/excel', async (req, res) => {
             // Go through each date
             for (let date of dates) {
                 // If the tsheets data exists, add it to the count
-                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || i.jobCode == complimentaryJC) {
+                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || (complimentaryJC && i.jobCode == complimentaryJC)) {
                     ts_hours += i.hours;
                     ts_count += parseInt(i.count);
                     tsheetsVisited.add(i.id)
@@ -683,19 +683,19 @@ Router.get('/excel', async (req, res) => {
                 revenue += parseFloat(assets.length) * p
 
                 // If snipe data exists, compare it to c-track data
-                if (snipeData && snipeData[date] && snipeData[date][id] && (snipeData[date][id][jc] || snipeData[date][id][parseInt(jc)])) {
-                    // Get snipe count
-                    snipe_count += snipeData[date][id][jc] ? snipeData[date][id][jc].length : snipeData[date][id][parseInt(jc)].length;
-                    // Get list of all snipe assets touched
-                    let s = snipeData[date][id][jc] ? snipeData[date][id][jc].map(m => m.toUpperCase().trim()) : snipeData[date][id][parseInt(jc)].map(m => m.toUpperCase().trim())
-                    // Get list of all c-track assets touched
-                    let a = assets.map(m => m.toUpperCase().trim())
-                    // XOR the two lists
-                    unique = [...a.filter(e => s.indexOf(e) === -1), ...s.filter(e => a.indexOf(e) === -1)]
-                } else {
-                    // If no snipe data, then all C-Track assets are unique values
-                    unique = assets.join(', ')
-                }
+                // if (snipeData && snipeData[date] && snipeData[date][id] && (snipeData[date][id][jc] || snipeData[date][id][parseInt(jc)])) {
+                //     // Get snipe count
+                //     snipe_count += snipeData[date][id][jc] ? snipeData[date][id][jc].length : snipeData[date][id][parseInt(jc)].length;
+                //     // Get list of all snipe assets touched
+                //     let s = snipeData[date][id][jc] ? snipeData[date][id][jc].map(m => m.toUpperCase().trim()) : snipeData[date][id][parseInt(jc)].map(m => m.toUpperCase().trim())
+                //     // Get list of all c-track assets touched
+                //     let a = assets.map(m => m.toUpperCase().trim())
+                //     // XOR the two lists
+                //     unique = [...a.filter(e => s.indexOf(e) === -1), ...s.filter(e => a.indexOf(e) === -1)]
+                // } else {
+                //     // If no snipe data, then all C-Track assets are unique values
+                //     unique = assets.join(', ')
+                // }
 
                 // If the report is over a span of days, increase the day count
                 if (range) if (![0, 6].includes(new Date(date).getDay()) && assets.length) days++
@@ -703,7 +703,7 @@ Router.get('/excel', async (req, res) => {
 
             // Add revenue and hours to totals
             totalrevenue += revenue
-            totalhours += ts_hours
+            if (!complimentaryJC) totalhours += ts_hours
 
             // Divide revenue among days
             if (!days) days = 1
