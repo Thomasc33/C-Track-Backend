@@ -991,7 +991,7 @@ Router.get('/excel', async (req, res) => {
 
     // In T-Sheets but not C-Track
     if (tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid].timesheets) {
-        if (!tsheetsVisited.has(sheet.id)) {
+        if (!tsheetsVisited.has(sheet.id) && sheet.jobcode_id != tsSettings.CPOCID) {
             if (!discrepancies[uid]) discrepancies[uid] = []
             discrepancies[uid].push({ jc: sheet.customfields ? sheet.customfields['1164048'] || sheet.notes : sheet.notes, ts_hours: sheet.hours, count: 0, date: date })
         }
