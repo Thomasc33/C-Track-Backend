@@ -1081,8 +1081,7 @@ async function getTsheetsData(job_codes, start, end, user_ids = [], includeCPOC 
                 start_date: start,
                 jobcode_ids: includeCPOC ? [tsSettings.GentivaCustomerID, tsSettings.CPOCID].join(',') : tsSettings.GentivaCustomerID, // CURO's customer id
                 end_date: end || undefined,
-                page: page,
-                on_the_clock: 'yes'
+                page: page
             }, headers: {
                 Authorization: `Bearer ${tsheetsBearer}`
             }
