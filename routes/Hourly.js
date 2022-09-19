@@ -3,6 +3,7 @@ const Router = express.Router()
 const sql = require('mssql')
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
+const notifications = require('../lib/notifications')
 
 const typeOfToColumn = {
     notes: 'notes',
@@ -97,7 +98,12 @@ Router.post('/user/new', async (req, res) => {
     }
 
     // Return
-    return res.status(200).json({ message: 'Success' })
+    res.status(200).json({ message: 'Success' })
+
+    if (getDate(date) !== new Date().toISOString().split('T')[0]) {
+        let jc_name = await pool.request().query(`SELECT job_name FROM jobs WHERE id = '${job_code}'`).then(r => r.recordset[0].job_name).catch(er => 'Unknown')
+        notifications.historicChangeNotify(`New hourly tracking record for: ''${jc_name}''`, uid, date)
+    }
 })
 
 Router.post('/user/edit', async (req, res) => {
@@ -147,7 +153,13 @@ Router.post('/user/edit', async (req, res) => {
     }
 
     // Return
-    return res.status(200).json({ message: 'Success' })
+    res.status(200).json({ message: 'Success' })
+
+    let old_data = await pool.request().query(`SELECT * FROM hourly_tracking WHERE id = '${id}'`).then(r => r.recordset[0]).catch(er => { return { errored: true, er } })
+
+    if (getDate(old_data.date) != new Date().toISOString().split('T')[0]) {
+        notifications.historicChangeNotify(`Hourly Tracking Record Edited, Change: ''${change}'' | Changed To: ''${value}''`, uid, getDate(old_data.date))
+    }
 })
 
 Router.delete('/user/del', async (req, res) => {
@@ -178,15 +190,13 @@ Router.delete('/user/del', async (req, res) => {
 
     let hourly_tracking = await pool.request().query(`DELETE FROM hourly_tracking WHERE id = '${id}' AND user_id = '${uid}' AND date = '${getDate(date)}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
-    if (hourly_tracking.isErrored) {
-        // Check for specific errors
+    if (hourly_tracking.isErrored) return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
 
-        // If no errors above, return generic Invalid UID Error
-        return res.status(400).json({ message: 'Invalid UID or not found, Asset Tracking Query Error' })
-    }
 
     // Return Data
-    return res.status(200).json({ message: 'Success' })
+    res.status(200).json({ message: 'Success' })
+
+    if (date !== getDate(Date.now())) notifications.historicChangeNotify(`Hourly Tracking Record Deleted`, uid, date)
 })
 
 module.exports = Router

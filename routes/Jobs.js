@@ -148,9 +148,6 @@ Router.post('/new', async (req, res) => {
     // Get Data
     const { job_code, job_name, price, isHourly, isAsset, applies, hourly_goal, statusOnly, restricted_comments, promptCount, snipe_id, usageRuleGroup } = req.body
 
-    console.log(usageRuleGroup)
-    console.log(`INSERT INTO jobs (job_code, job_name, price, is_hourly, status_only, applies, requires_asset${hourly_goal ? ', hourly_goal' : ''}, restricted_comments, prompt_count, snipe_id, usage_rule_group) VALUES ('${job_code}','${job_name}','${price}','${isHourly ? '1' : '0'}',${statusOnly ? '1' : '0'}, '${applies || ''}','${isAsset ? '1' : '0'}'${hourly_goal ? ', \'0\'' : ''}, '${restricted_comments || ''}', '${promptCount ? '1' : '0'}', ${snipe_id}, ${usageRuleGroup && usageRuleGroup !== 'remove' ? `'${usageRuleGroup}'` : 'NULL'})`)
-
     // Data Validation
     let errored = false
     let issues = []
