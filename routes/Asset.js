@@ -190,6 +190,9 @@ Router.post('/user/new', async (req, res) => {
     // Edit asset and set status
     pool.request().query(`UPDATE assets SET status = '${job_code}' WHERE id = '${asset_id}'`)
 
+    // If date !== today, send notification
+    if (date && date !== new Date().toISOString().split('T')[0]) notifications.historicChangeNotify(`New asset tracking record for asset: ''${asset_id}'' to status ''${job_code_query.recordset[0].job_name}''`, uid, date)
+
     notifications.notify(req.headers.authorization, asset_id, job_code_query.recordset[0].job_name || job_code)
     if (asset_query.recordset[0].hold_type) notifications.hold_notify(asset_id, job_code_query.recordset[0].job_name || job_code)
 })
@@ -406,6 +409,11 @@ Router.post('/user/edit', async (req, res) => {
             }
         }
     }
+
+    // If historical change, send notification
+    if (getDate(asset_tracker_to_id_query.recordset[0].date) != new Date().toISOString().split('T')[0])
+        notifications.historicChangeNotify(`Asset Tracking Record Edited, Change: ''${change}'' | Changed To: ''${value}''`, uid, getDate(asset_tracker_to_id_query.recordset[0].date))
+
 })
 
 Router.delete('/user/del', async (req, res) => {
@@ -452,6 +460,10 @@ Router.delete('/user/del', async (req, res) => {
     let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${info.asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0].job_code)
         .catch(er => { return undefined })
     if (previousRecord) pool.request().query(`UPDATE assets SET status = '${previousRecord}' WHERE id = '${info.asset_id}'`)
+
+    // If historical data, send notificaiton
+    if (date !== new Date().toISOString().split('T')[0]) notifications.historicChangeNotify(`Asset Tracking Record Deleted`, uid, date)
+
 })
 
 Router.get('/fetch', async (req, res) => {
