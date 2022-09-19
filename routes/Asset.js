@@ -100,7 +100,13 @@ Router.post('/user/new', async (req, res) => {
         errored = true
         issues.push('Asset ID not provided')
     }
-    // if (branch) validate branch code somehow?
+    if (branch) {
+        if (branch.length > 15) {
+            errored = true
+            issues.push('Branch name too long')
+        }
+        branch = branch.toUpperCase()
+    }
 
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
@@ -349,14 +355,14 @@ Router.post('/user/edit', async (req, res) => {
         // If usage rule group is ship, update asset location to change
         let jc_usage = await pool.request().query(`SELECT usage_rule_group FROM jobs WHERE id = '${jc}'`).then(r => r.recordset[0]).catch(er => { console.log(er); return undefined })
         if (jc_usage && jc_usage == 'ship') {
-            let asset_update = await pool.request().query(`UPDATE assets SET location = '${value}' WHERE id = '${asset_id}'`)
+            let asset_update = await pool.request().query(`UPDATE assets SET location = '${value.toUpperCase()}' WHERE id = '${asset_id}'`)
                 .catch(er => { return { isErrored: true, er: er } })
             if (asset_update.isErrored) console.log(asset_update.er)
         }
     }
 
     // Send to DB
-    let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${value}' WHERE id = '${id}' AND user_id = '${uid}'`)
+    let result = await pool.request().query(`UPDATE asset_tracking SET ${typeOfToColumn[change]} = '${change == 'branch' ? value.toUpperCase() : value}' WHERE id = '${id}' AND user_id = '${uid}'`)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (result.isErrored) {
         return res.status(400).json({ message: 'Unsuccessful', error: result.error })
