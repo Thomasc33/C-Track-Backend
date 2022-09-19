@@ -736,7 +736,7 @@ Router.get('/excel', async (req, res) => {
             if (range) d[d.length - 1].push({ value: revenue / days, rightBorderStyle: 'thin', })
             d[d.length - 1].push({ value: 0, rightBorderStyle: 'thin', })
         })
-        
+
         // Iterate through all hourly job codes
         hourlyJobCodes.forEach(jc => {
             //count totals
@@ -1081,7 +1081,8 @@ async function getTsheetsData(job_codes, start, end, user_ids = [], includeCPOC 
                 start_date: start,
                 jobcode_ids: includeCPOC ? [tsSettings.GentivaCustomerID, tsSettings.CPOCID].join(',') : tsSettings.GentivaCustomerID, // CURO's customer id
                 end_date: end || undefined,
-                page: page
+                page: page,
+                on_the_clock: 'yes'
             }, headers: {
                 Authorization: `Bearer ${tsheetsBearer}`
             }
