@@ -169,8 +169,12 @@ Router.post('/user/new', async (req, res) => {
         return res.status(401).json({ message: 'Unsuccessful', error: result.error })
     }
 
+    // Check to see if asset is being watched
+    let watching = ruleGroup == 'chkn' ? await pool.request().query(`SELECT watching FROM assets WHERE id = '${asset_id}'`).then(r => r.recordset[0].watching) : undefined
+    if (watching) watching = await pool.request().query(`SELECT name FROM users WHERE id IN (${watching})`).then(r => r.recordset.map(m => m.name))
+
     // Ack Success
-    res.status(200).json({ message: 'Success' })
+    res.status(200).json({ message: 'Success', watching: watching || undefined })
 
     // If branch, update asset location
     if (branch && ruleGroup == 'ship') {
