@@ -56,7 +56,7 @@ Router.post('/user/new', async (req, res) => {
 
     // Get Params
     const data = req.body;
-    let { date, job_code, startTime, endTime, total_hours, notes, in_progress } = data
+    let { date, job_code, startTime, endTime, notes, in_progress } = data
     if (uid && !isAdmin && !permissions.edit_others_worksheets) return res.status(401).json({ message: 'missing permission' })
     if (!uid) uid = t_uid
 
@@ -80,14 +80,15 @@ Router.post('/user/new', async (req, res) => {
             issues.push('Issue with End Time')
         }
     }
-    if (!total_hours || `${total_hours}`.replace(/[\d.]/g, '') !== '') {
-        errored = true
-        issues.push('Issue with Total Hours')
-    }
     if (!job_code || (typeof (job_code) == 'string' && job_code.replace(/\d/gi, '') !== '')) {
         errored = true
         issues.push('Invalid Job Code or Job Code not type Int')
     }
+
+    // Get total hours
+    let total_hours = getTotalHours(`${date} ${startTime}`, `${date} ${endTime}`)
+
+    // Return if there was an error
     if (errored) return res.status(400).json({ message: 'Unsuccessful', issues: issues })
 
     // Send to DB
@@ -152,6 +153,13 @@ Router.post('/user/edit', async (req, res) => {
         return res.status(400).json({ message: 'Unsuccessful', error: result.error })
     }
 
+    // validate total hours
+    let hq = await pool.request().query(`SELECT hours,start_time,end_time FROM hourly_tracking WHERE id = '${id}' AND user_id = '${uid}'`)
+        .catch(er => console.log(er)).then(r => r.recordset[0])
+    let calc_hours = getTotalHours(hq.start_time, hq.end_time)
+    if (calc_hours !== hq.hours) await pool.request().query(`UPDATE hourly_tracking SET hours = '${calc_hours}' WHERE id = '${id}' AND user_id = '${uid}'`).catch(er => console.log(er))
+
+
     // Return
     res.status(200).json({ message: 'Success' })
 
@@ -209,4 +217,12 @@ module.exports = Router
 function getDate(date) {
     date = new Date(date)
     return date.toISOString().split('T')[0]
+}
+
+function getTotalHours(start, end) {
+    let start_date = new Date(start)
+    let end_date = new Date(end)
+    let total_hours = end_date - start_date
+    total_hours = total_hours / 1000 / 60 / 60
+    return total_hours
 }
