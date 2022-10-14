@@ -136,6 +136,7 @@ app.use('/a/reports', require('./routes/Reports').Router)
 app.use('/a/oauth', require('./routes/OAuth'))
 app.use('/a/parts', require('./routes/Parts'))
 app.use('/a/misc', require('./routes/Misc'))
+app.use('/a/branch', require('./routes/Branch'))
 
 
 // Starts HTTP Server
