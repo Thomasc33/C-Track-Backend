@@ -5,6 +5,7 @@ const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 const newAssetStatusCode = require('../settings.json').newAssetStatusCode
 const notifications = require('../lib/notifications')
+const moment = require('moment')
 
 const typeOfs = {
     asset: 'asset',
@@ -1046,9 +1047,10 @@ Router.put('/alter', async (req, res) => {
 })
 
 Router.get('/locations', async (req, res) => {
-    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
-    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.view_branches) return res.status(403).json({ error: 'Permission denied' })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
@@ -1067,9 +1069,10 @@ Router.get('/locations', async (req, res) => {
 })
 
 Router.post('/locations', async (req, res) => {
-    const { uid, isAdmin } = await tokenParsing.checkForAdmin(req.headers.authorization)
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
-    if (!isAdmin) return res.status(401).json({ error: 'Forbidden' })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_branches) return res.status(403).json({ error: 'Permission denied' })
 
     // Get Location from body
     const { location } = req.body
@@ -1091,6 +1094,145 @@ Router.post('/locations', async (req, res) => {
     for (let i of q) i.status = jobs[i.status]
 
     return res.status(200).json({ data: q })
+})
+
+Router.get('/overview', async (req, res) => {
+    // Check to see if user can use route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.view_reports) return res.status(403).json({ error: 'Permission denied' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get Assets
+    let assets = await pool.request().query(`SELECT * FROM assets`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (assets.isErrored) return res.status(500).json({ message: 'how' })
+
+    let overview = []
+    overview.push({ name: 'Total Assets', value: assets.length })
+    overview.push({ name: 'Estimated In-House', value: assets.filter(a => a.location == 'MDCentric').length })
+
+    // Get customReportOptions
+    let customReportOptions = { attributes: [], status: [], type: [], last_updated: ['All Time', 'Today', 'Since Yesterday', 'Past Week', 'Past 2 Weeks', 'Past Month', 'Past 2 Months', 'Past 3 Months', 'Past 6 Months', 'Past Year', 'Past 2 Years'], location: [], locked: ['Yes', 'No'], user: [] }
+    customReportOptions.attributes = Object.keys(assets[0])
+
+    // Get Statuses
+    let jobs = await pool.request().query(`SELECT id,job_name FROM jobs`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (jobs.isErrored) return res.status(500).json({ message: 'how' })
+    customReportOptions.status = jobs.map(i => `${i.job_name} \ (${i.id})`)
+
+    // Get Types
+    customReportOptions.type = require('../settings.json').deviceTypes
+
+    // Get Locations
+    let locations = await pool.request().query(`SELECT id FROM branches`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (locations.isErrored) return res.status(500).json({ message: 'how' })
+    locations = locations.map(i => i.id)
+    locations.sort()
+    locations = new Set(locations)
+    locations.delete('MDCentric')
+    locations.delete('Unknown')
+    locations.delete('COR')
+    locations.delete('Decommissioned')
+    customReportOptions.location = ['MDCentric', 'Unknown', 'Decommissioned', 'COR', ...locations]
+
+    // Get Users
+    let users = await pool.request().query(`SELECT name,id FROM users`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (users.isErrored) return res.status(500).json({ message: 'how' })
+    customReportOptions.user = users.map(i => `${i.name} \ (${i.id})`)
+
+    return res.status(200).json({ overview, customReportOptions })
+})
+
+Router.post('/report', async (req, res) => {
+    // Check to see if user can use route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.view_reports) return res.status(403).json({ error: 'Permission denied' })
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    // Get Report Options from body
+    const { attributes, status, type, last_updated, location, locked, user } = req.body
+
+    // Get Assets
+    let filters = [status && status.length ? { val: status, name: 'status' } : undefined, location && location.length ? { val: location, name: 'location' } : undefined, locked && locked.length == 1 ? { val: [locked.map(m => m == 'Yes' ? 1 : 0)], name: 'locked' } : undefined].filter(i => i)
+    let assets = await pool.request().query(`SELECT ${attributes && attributes.length ? [...new Set([...attributes, 'model_number'])].join(',') : '*'} FROM assets${filters.length ? ` WHERE ${filters.map(f => `(${f.val.map(m => `${f.name} = '${m}'`).join(' OR ')})`).join(' AND ')}` : ''}`).then(r => r.recordset)
+        .catch(er => { console.log(er); return { isErrored: true, error: er } })
+    if (assets.isErrored) return res.status(500).json({ message: 'how' })
+
+    // Filter by type
+    if (type && type.length) {
+        let models = await pool.request().query(`SELECT model_number,category FROM models`).then(r => r.recordset)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (models.isErrored) return res.status(500).json({ message: 'how' })
+        let modelMap = {}
+        for (let i of models) modelMap[i.model_number.toLowerCase().trim()] = new Set(i.category.split(',').map(m => m.toLowerCase().trim()))
+        assets = assets.filter(i => type.some(t => modelMap[i.model_number.toLowerCase().trim()].has(t.toLowerCase().trim())))
+    }
+
+    // Filter by last_updated
+    if (last_updated && last_updated.length) {
+        let days
+        let lastUpdated = new Set(last_updated)
+        if (lastUpdated.has('Today')) days = 0
+        else if (lastUpdated.has('Since Yesterday')) days = 1
+        else if (lastUpdated.has('Past Week')) days = 7
+        else if (lastUpdated.has('Past 2 Weeks')) days = 14
+        else if (lastUpdated.has('Past Month')) days = 30
+        else if (lastUpdated.has('Past 2 Months')) days = 60
+        else if (lastUpdated.has('Past 3 Months')) days = 90
+        else if (lastUpdated.has('Past 6 Months')) days = 180
+        else if (lastUpdated.has('Past Year')) days = 365
+        else if (lastUpdated.has('Past 2 Years')) days = 730
+        else if (lastUpdated.has('All Time')) days = -1
+        let asset_tracking = await pool.request().query(`SELECT asset_id,updated = CAST(date AS DATETIME) + CAST(time AS DATETIME) FROM asset_tracking${days >= 0 ? ` WHERE date >= '${moment().subtract(days, 'days').format('YYYY-MM-DD')}'` : ''}`).then(r => r.recordset)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (asset_tracking.isErrored) return res.status(500).json({ message: 'how' })
+        let updatedAssets = new Set(asset_tracking.map(i => i.asset_id.toLowerCase().trim()))
+        assets = assets.filter(i => updatedAssets.has(i.id.toLowerCase().trim()))
+
+        // Add latest update to assets
+        let latestUpdates = {}
+        for (let i of asset_tracking) {
+            if (!latestUpdates[i.asset_id.toLowerCase().trim()]) latestUpdates[i.asset_id.toLowerCase().trim()] = i
+            else if (moment(i.date).isAfter(latestUpdates[i.asset_id.toLowerCase().trim()].date)) latestUpdates[i.asset_id.toLowerCase().trim()] = i
+        }
+        for (let i of assets) i.latest_update = latestUpdates[i.id.toLowerCase().trim()].updated
+    }
+
+    if (user && user.length) {
+        let asset_tracking = await pool.request().query(`SELECT asset_id,id,user_id FROM asset_tracking WHERE ${user.map(m => `user_id = '${m}'`).join(' OR ')}`).then(r => r.recordset)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (asset_tracking.isErrored) return res.status(500).json({ message: 'how' })
+
+        let assetTrackingAssets = new Set(asset_tracking.map(i => i.asset_id.toLowerCase().trim()))
+        assets = assets.filter(i => assetTrackingAssets.has(i.id.toLowerCase().trim()))
+
+        // Add list of users who updated asset
+        let names = await pool.request().query(`SELECT id,name FROM users`).then(r => r.recordset)
+            .catch(er => { console.log(er); return { isErrored: true, error: er } })
+        if (names.isErrored) return res.status(500).json({ message: 'how' })
+        let nameMap = {}
+        for (let i of names) nameMap[i.id] = i.name
+        let assetsUpdatedBy = {}
+        for (let i of asset_tracking) {
+            if (!assetsUpdatedBy[i.id]) assetsUpdatedBy[i.asset_id.toLowerCase().trim()] = new Set()
+            assetsUpdatedBy[i.asset_id.toLowerCase().trim()].add(nameMap[i.user_id])
+        }
+        for (let i of assets) i.users = [...assetsUpdatedBy[i.id.toLowerCase().trim()]].join(', ')
+
+    }
+
+    return res.status(200).json({ assets })
 })
 
 
