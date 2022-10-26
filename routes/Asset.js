@@ -1111,9 +1111,12 @@ Router.get('/overview', async (req, res) => {
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (assets.isErrored) return res.status(500).json({ message: 'how' })
 
+    let deployCodes = new Set([45, 46, 49, 92, 94, 95, 109, 113, 114, 119, 120])
     let overview = []
     overview.push({ name: 'Total Assets', value: assets.length })
-    overview.push({ name: 'Estimated In-House', value: assets.filter(a => a.location == 'MDCentric').length })
+    overview.push({ name: 'Estimated In-House', value: assets.filter(a => a.location.toLowerCase() == 'mdcentric').length })
+    overview.push({ name: 'Deployed', value: assets.filter(a => deployCodes.has(a.status)).length })
+    overview.push({ name: 'Decommisioned', value: assets.filter(a => a.location.toUpperCase() == 'DECOMMISSIONED').length })
 
     // Get customReportOptions
     let customReportOptions = { attributes: [], status: [], type: [], last_updated: ['All Time', 'Today', 'Since Yesterday', 'Past Week', 'Past 2 Weeks', 'Past Month', 'Past 2 Months', 'Past 3 Months', 'Past 6 Months', 'Past Year', 'Past 2 Years'], location: [], locked: ['Yes', 'No'], user: [] }
@@ -1165,7 +1168,7 @@ Router.post('/report', async (req, res) => {
 
     // Get Assets
     let filters = [status && status.length ? { val: status, name: 'status' } : undefined, location && location.length ? { val: location, name: 'location' } : undefined, locked && locked.length == 1 ? { val: [locked.map(m => m == 'Yes' ? 1 : 0)], name: 'locked' } : undefined].filter(i => i)
-    let assets = await pool.request().query(`SELECT ${attributes && attributes.length ? [...new Set([...attributes, 'model_number'])].join(',') : '*'} FROM assets${filters.length ? ` WHERE ${filters.map(f => `(${f.val.map(m => `${f.name} = '${m}'`).join(' OR ')})`).join(' AND ')}` : ''}`).then(r => r.recordset)
+    let assets = await pool.request().query(`SELECT ${attributes && attributes.length ? [...new Set([...attributes, 'model_number'])].join(' + ') : '*'} FROM assets${filters.length ? ` WHERE ${filters.map(f => `(${f.val.map(m => `${f.name} = '${m}'`).join(' OR ')})`).join(' AND ')}` : ''}`).then(r => r.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (assets.isErrored) return res.status(500).json({ message: 'how' })
 
