@@ -934,9 +934,9 @@ Router.get('/excel', async (req, res) => {
         // Check for CPOC Billable Discrepancies
         for (let today of dates) if (tsheets_data && tsheets_data[today] && tsheets_data[today][id]) for (let i of tsheets_data[today][id].timesheets) if (i.jobcode_id == tsSettings.CPOCID) {
             let billable = i.customfields['1180404'] == 'Yes' ? true : false
-            let jc = i.customfields['1164048'].toLowerCase()
-            if (jc.includes('overhead') && billable) { discrepancies[id].push({ jc: i.customfields['1164048'], date: today, unique: `Billable Overhead` }) }
-            else if (jc.includes('professional development') && !billable) { discrepancies[id].push({ jc: i.customfields['1164048'], date: today, message: `Non-Billable PD` }) }
+            let jc = i.customfields['969708'].toLowerCase()
+            if (jc.includes('overhead') && billable) { discrepancies[id].push({ jc: i.customfields['969708'], date: today, unique: `Billable Overhead` }) }
+            else if (jc.includes('professional development') && !billable) { discrepancies[id].push({ jc: i.customfields['969708'], date: today, message: `Non-Billable PD` }) }
         }
 
         return d
@@ -999,7 +999,7 @@ Router.get('/excel', async (req, res) => {
     if (tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid].timesheets) {
         if (!tsheetsVisited.has(sheet.id) && sheet.jobcode_id != tsSettings.CPOCID) {
             if (!discrepancies[uid]) discrepancies[uid] = []
-            discrepancies[uid].push({ jc: sheet.customfields ? sheet.customfields['1164048'] || sheet.notes : sheet.notes, ts_hours: sheet.hours, count: 0, date: date })
+            discrepancies[uid].push({ jc: sheet.customfields ? sheet.customfields['969708'] || sheet.notes : sheet.notes, ts_hours: sheet.hours, count: 0, date: date })
         }
     }
 
@@ -1079,7 +1079,7 @@ async function getTsheetsData(job_codes, start, end, user_ids = [], includeCPOC 
             params: {
                 user_ids: user_ids.join(','),
                 start_date: start,
-                jobcode_ids: includeCPOC ? [tsSettings.GentivaCustomerID, tsSettings.CPOCID].join(',') : tsSettings.GentivaCustomerID, // CURO's customer id
+                jobcode_ids: tsSettings.GentivaCustomerID, //includeCPOC ? [tsSettings.GentivaCustomerID, tsSettings.CPOCID].join(',') : tsSettings.GentivaCustomerID, // CURO's customer id
                 end_date: end || undefined,
                 page: page
             }, headers: {
@@ -1108,10 +1108,11 @@ async function getTsheetsData(job_codes, start, end, user_ids = [], includeCPOC 
             if (!tsheets_data[d][uid]) tsheets_data[d][uid] = { userObj: ts_call.data.supplemental_data.users[i.user_id], timesheets: [] }
 
             // Make sure the job code field is populated
-            if (!i.customfields || !i.customfields['1164048']) { console.log(`Missing customfield or customfield[1164048] on uid: ${uid}'s entry with id of ${i.id}\n${i.customfields.map((val, key) => `${key}: ${val}`).join(', ')}`); continue }
+            if (!i.customfields) { console.log('No custom fields', i); continue; }
+            if (!i.customfields['969708']) { console.log(`Missing customfield or customfield[969708] on uid: ${uid}'s entry with id of ${i.id}\n${i.customfields.map((val, key) => `${key}: ${val}`).join(', ')}`); continue }
 
             // Try to get job code name from cache
-            let jc_name = i.customfields['1164048'].split(':').splice(1).join(':').replace(/[:-\s]/gi, '').toLowerCase()
+            let jc_name = i.customfields['969708'].split(':').splice(1).join(':').replace(/[:-\s]/gi, '').toLowerCase()
             if (!jc_name) { console.log(`Missing jc_name from uid: ${uid}'s entry with id of ${i.id}`); continue }
             if (job_code_cache[`${jc_name}`]) i.jobCode = job_code_cache[`${jc_name}`]
             // If its not in cache, search through all job codes to find it, then add to cache
