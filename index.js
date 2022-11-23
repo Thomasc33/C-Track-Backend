@@ -28,11 +28,12 @@ async function dbConnect() {
 }
 dbConnect()
 
-// API Setup
+// API Setup//
 console.log('Starting API')
 const credentials = { // Certificates for SSL encryption, required to make everything operate over HTTPS
-    //key: fs.readFileSync('./public/privkey.pem', 'utf-8')
-    //cert: fs.readFileSync('./public/cert.pem', 'utf-8')
+    key: fs.readFileSync('./certs/key.pem', 'utf-8'),
+    cert: fs.readFileSync('./certs/cert.pem', 'utf-8'),
+    // ca: fs.readFileSync('./certs/chain.pem', 'utf-8')
 }
 
 // Body Parser
@@ -141,8 +142,8 @@ app.use('/a/branch', require('./routes/Branch'))
 
 // Starts HTTP Server
 // Will switch to HTTPS for prod
-const httpServer = http.createServer(app)
+const httpServer = https.createServer(credentials, app)
 httpServer.listen(require('./settings.json').port)
 
 // Setup CRON Tasks
-const discrepency_cron = new cron.CronJob('0 45 11,16 * * 1-5', () => { discrepancies.check() }, () => { console.log('Discrepency Check Complete for All') }, true, 'America/New_York')
+const discrepency_cron = new cron.CronJob('0 58 16 * * 1-5', () => { discrepancies.check() }, () => { console.log('Discrepency Check Complete for All') }, true, 'America/New_York')

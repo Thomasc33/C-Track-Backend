@@ -198,6 +198,10 @@ Router.post('/user/new', async (req, res) => {
     // If date !== today, send notification
     if (date && date !== new Date().toISOString().split('T')[0]) notifications.historicChangeNotify(`New asset tracking record for asset: ''${asset_id}'' to status ''${job_code_query.recordset[0].job_name}''`, uid, date)
 
+    // Mark as returned in rff list
+    pool.request().query(`UPDATE rff SET returned = 1 WHERE asset_id = '${asset_id}' AND returned = 0`)
+
+    // Send notification if asset is being watched
     notifications.notify(req.headers.authorization, asset_id, job_code_query.recordset[0].job_name || job_code)
     if (asset_query.recordset[0].hold_type) notifications.hold_notify(asset_id, job_code_query.recordset[0].job_name || job_code)
 })
@@ -414,6 +418,9 @@ Router.post('/user/edit', async (req, res) => {
             }
         }
     }
+
+    // Mark as returned in rff list
+    pool.request().query(`UPDATE rff SET returned = 1 WHERE asset_id = '${change == 'asset' ? value : asset_id}' AND returned = 0`)
 
     // If historical change, send notification
     if (getDate(asset_tracker_to_id_query.recordset[0].date) != new Date().toISOString().split('T')[0])
