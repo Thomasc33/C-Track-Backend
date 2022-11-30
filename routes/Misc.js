@@ -293,6 +293,36 @@ Router.post('/rff/removeloststolen', async (req, res) => {
     return res.status(200).json({ success: true })
 })
 
+Router.post('/rff/closeloststolen', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.use_rff_tracking) return res.status(401).json({ error: 'Not authtorized to use this route' })
+    if (!req.body) return res.status(400).json({ error: 'No body' })
+
+    // Get id from body
+    const { id } = req.body
+    if (!id) return res.status(400).json({ error: 'Missing required fields' })
+
+    // Connect to the database
+    const pool = await sql.connect(config)
+
+    // Check if rff record exists
+    const asset_q = await pool.request().query(`SELECT id FROM rff WHERE id = '${id}'`)
+        .catch(er => { return { errored: true, er } }).then(r => r.recordset)
+    if (asset_q.errored) return res.status(500).json({ error: asset_q.er })
+    if (!asset_q || !asset_q.length) return res.status(400).json({ error: 'RFF record doesnt exist ' + id })
+
+    // Update rff table
+    const rff = await pool.request().query(`UPDATE rff SET returned = 1 WHERE id = '${id}'`)
+        .catch(er => { return { errored: true, er } })
+    if (rff.errored) return res.status(500).json({ error: rff.er })
+    if (!rff || !rff.rowsAffected || !rff.rowsAffected.length || !rff.rowsAffected[0]) return res.status(400).json({ error: 'Failed to update rff table' })
+
+    return res.status(200).json({ success: true })
+})
+
 Router.post('/rff/voicemail', async (req, res) => {
     // Make sure user can use this route
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
