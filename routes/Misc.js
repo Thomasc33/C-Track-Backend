@@ -152,7 +152,7 @@ Router.get('/rff', async (req, res) => {
     }
 
     // Get Lost Stolen Devices
-    const lost_stolen = await pool.request().query(`SELECT * FROM rff_lost_stolen`) 
+    const lost_stolen = await pool.request().query(`SELECT * FROM rff_lost_stolen`)
         .catch(er => { return { errored: true, er } }).then(r => r.recordset)
     if (lost_stolen.errored) return res.status(500).json({ error: lost_stolen.er })
 
