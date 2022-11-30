@@ -604,12 +604,14 @@ Router.get('/excel', async (req, res) => {
         [{ value: `${range ? `${range}-` : ''}${date}`, fontWeight: 'bold' }],
         [],
         [{ value: 'Total Revenue', leftBorderStyle: 'thick', topBorderStyle: 'thick' }, { value: 0, topBorderStyle: 'thick', rightBorderStyle: 'thick' }],
+        [{ value: 'Revenue Without John', leftBorderStyle: 'thick' }, { value: 0, rightBorderStyle: 'thick' }], // remove this line if john leaves, also update indexes below
         [{ value: 'Total Hours', leftBorderStyle: 'thick' }, { value: 0, rightBorderStyle: 'thick' }],
         [{ value: 'Average Hourly Revenue', leftBorderStyle: 'thick', bottomBorderStyle: 'thick' }, { value: 0, bottomBorderStyle: 'thick', rightBorderStyle: 'thick' }],
         [], [], []
     ]
     let total_hours = 0
     let total_revenue = 0
+    let john_revenue = 0
     let discrepancies = {}
     for (let i of applicableUsers) discrepancies[i] = []
     let tsheetsVisited = new Set()
@@ -939,6 +941,9 @@ Router.get('/excel', async (req, res) => {
             else if (jc.includes('professional development') && !billable) { discrepancies[id].push({ jc: i.customfields['969708'], date: today, message: `Non-Billable PD` }) }
         }
 
+        // Add johns revenue
+        if (id == 9) johnsRevenue = totalrevenue
+
         return d
     }
 
@@ -1008,9 +1013,10 @@ Router.get('/excel', async (req, res) => {
 
     // Update global totals
     data[3][1].value = total_revenue
-    data[4][1].value = total_hours
-    data[5][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours, 3)
-    data[5][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
+    data[4][1].value = +total_revenue - +john_revenue
+    data[5][1].value = total_hours
+    data[6][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours, 3)
+    data[6][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
 
     // Set column widths
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
