@@ -1,6 +1,6 @@
 {
   "name": "c-track-backend",
-  "version": "2.7.2",
+  "version": "2.7.3",
   "description": "C-Track's backend code",
   "private": true,
   "main": "index.js",
