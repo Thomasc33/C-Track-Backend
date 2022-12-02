@@ -942,7 +942,7 @@ Router.get('/excel', async (req, res) => {
         }
 
         // Add johns revenue
-        if (id == 9) johnsRevenue = totalrevenue
+        if (id == 9) john_revenue = totalrevenue
 
         return d
     }
@@ -1012,7 +1012,7 @@ Router.get('/excel', async (req, res) => {
     applicableUsers.forEach(u => { if (discrepancies[u] && discrepancies[u].length > 0) data.push(...getDiscrepancy(u), [], []) })
 
     // If Johns Revenue is 0, get it from T-Sheets
-    if (johnsRevenue == 0) for (let date of dates) {
+    if (john_revenue == 0) for (let date of dates) {
         let ts = tsheets_data[date]
         if (ts[9]) for (let s of ts[9].timesheets) {
             // Get Job Code
