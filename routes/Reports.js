@@ -616,19 +616,19 @@ Router.get('/excel', async (req, res) => {
     for (let i of applicableUsers) discrepancies[i] = []
     let tsheetsVisited = new Set()
 
+    // Get list of dates
+    let dates = []
+    if (range) {
+        let start = new Date(range)
+        let end = new Date(date)
+        while (start <= end) {
+            dates.push(new Date(start).toISOString().split('T')[0])
+            start = start.addDays(1)
+        }
+    } else dates.push(date)
+
     function getUserData(id) {
         let d = []
-
-        // Get list of dates
-        let dates = []
-        if (range) {
-            let start = new Date(range)
-            let end = new Date(date)
-            while (start <= end) {
-                dates.push(new Date(start).toISOString().split('T')[0])
-                start = start.addDays(1)
-            }
-        } else dates.push(date)
 
         // Add titles to section
         d.push([{ fontSize: 24, value: usernames[id] || id }])
