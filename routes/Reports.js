@@ -1011,6 +1011,28 @@ Router.get('/excel', async (req, res) => {
     // For each user, if there were discrepancies, add them to the data
     applicableUsers.forEach(u => { if (discrepancies[u] && discrepancies[u].length > 0) data.push(...getDiscrepancy(u), [], []) })
 
+    // If Johns Revenue is 0, get it from T-Sheets
+    if (johnsRevenue == 0) for (let date of dates) {
+        let ts = tsheets_data[date]
+        if (ts[9]) for (let s of ts[9].timesheets) {
+            // Get Job Code
+            let jc = s.jobCode
+
+            // Get Complimentary Job Code
+            let complimentaryJC
+            for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
+
+            // Get highest rate
+            let p = getPriceFromDate(prices, date, jc)
+            let complimentaryP = complimentaryJC ? getPriceFromDate(prices, date, complimentaryJC) : 0
+            p = Math.max(p, complimentaryP)
+
+            // Add hours * price to john_revenue
+            john_revenue += s.hours * p
+        }
+    }
+
+
     // Update global totals
     data[3][1].value = total_revenue
     data[4][1].value = +total_revenue - +john_revenue
