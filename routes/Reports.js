@@ -1027,8 +1027,9 @@ Router.get('/excel', async (req, res) => {
             let complimentaryP = complimentaryJC ? getPriceFromDate(prices, date, complimentaryJC) : 0
             p = Math.max(p, complimentaryP)
 
-            // Add hours * price to john_revenue
+            // Add hours * price to john_revenue and total_revenue
             john_revenue += s.hours * p
+            total_revenue += s.hours * p
         }
     }
 
