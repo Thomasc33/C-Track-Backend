@@ -186,10 +186,10 @@ Router.post('/user/new', async (req, res) => {
         }
     }
 
-    // If checkin job code, set location to MDCentric
-    if (ruleGroup == 'chkn') pool.request().query(`UPDATE assets SET location = 'MDCentric' WHERE id = '${asset_id}'`)
+    // If checkin job code, set location to In-House
+    if (ruleGroup == 'chkn') pool.request().query(`UPDATE assets SET location = 'In-House' WHERE id = '${asset_id}'`)
 
-    // If decom job code, set location to MDCentric
+    // If decom job code, set location to In-House
     if (ruleGroup == 'decom') pool.request().query(`UPDATE assets SET location = 'DECOMMISSIONED', locked = 1 WHERE id = '${asset_id}'`)
 
     // Edit asset and set status
@@ -388,7 +388,7 @@ Router.post('/user/edit', async (req, res) => {
         let previousRecord = await pool.request().query(`SELECT TOP 1 * FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY CAST(date AS DATETIME) + CAST(time AS DATETIME) DESC`).then(m => m.recordset[0]).catch(er => { return undefined })
         if (previousRecord && previousRecord.job_code) pool.request().query(`UPDATE assets SET status = '${previousRecord.job_code}' WHERE id = '${asset_id}'`)
         if (previousRecord.id == id) {
-            if (usageRuleGroup == 'chkn') pool.request().query(`UPDATE assets SET location = 'MDCentric' WHERE id = '${asset_id}'`)
+            if (usageRuleGroup == 'chkn') pool.request().query(`UPDATE assets SET location = 'In-House' WHERE id = '${asset_id}'`)
 
             let status_name_query = await pool.request().query(`SELECT job_name FROM jobs WHERE id = ${value}`)
                 .catch(er => { return { isErrored: true, er: er } })
@@ -1121,7 +1121,7 @@ Router.get('/overview', async (req, res) => {
     let deployCodes = new Set([45, 46, 49, 92, 94, 95, 109, 113, 114, 119, 120])
     let overview = []
     overview.push({ name: 'Total Assets', value: assets.length })
-    overview.push({ name: 'Estimated In-House', value: assets.filter(a => a.location.toLowerCase() == 'mdcentric').length })
+    overview.push({ name: 'Estimated In-House', value: assets.filter(a => a.location.toLowerCase() == 'In-House').length })
     overview.push({ name: 'Deployed', value: assets.filter(a => deployCodes.has(a.status)).length })
     overview.push({ name: 'Decommisioned', value: assets.filter(a => a.location.toUpperCase() == 'DECOMMISSIONED').length })
 
@@ -1145,11 +1145,11 @@ Router.get('/overview', async (req, res) => {
     locations = locations.map(i => i.id)
     locations.sort()
     locations = new Set(locations)
-    locations.delete('MDCentric')
+    locations.delete('In-House')
     locations.delete('Unknown')
     locations.delete('COR')
     locations.delete('Decommissioned')
-    customReportOptions.location = ['MDCentric', 'Unknown', 'Decommissioned', 'COR', ...locations]
+    customReportOptions.location = ['In-House', 'Unknown', 'Decommissioned', 'COR', ...locations]
 
     // Get Users
     let users = await pool.request().query(`SELECT name,id FROM users`).then(r => r.recordset)

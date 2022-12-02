@@ -34,19 +34,19 @@ Router.post('/inventory', async (req, res) => {
 
     for (let i of data) {
         if (!iBefore[i]) missingAssets.push(i)
-        else if (iBefore[i].location.toLowerCase() !== 'mdcentric') wrongLocationAssets.push(i)
+        else if (iBefore[i].location.toLowerCase() !== 'In-House') wrongLocationAssets.push(i)
         else upToDateAssets.push(i)
     }
 
     const locationUpdateString = wrongLocationAssets.map(m => `${m},${iBefore[m].location}`).join('/')
 
     // Get inhousenotscanned
-    const inHouseQuery = await pool.request().query(`SELECT * FROM assets WHERE location = 'mdcentric' AND id NOT IN (${data.map(m => `'${m}'`).join(',')})`).then(r => r.recordset)
+    const inHouseQuery = await pool.request().query(`SELECT * FROM assets WHERE location = 'In-House' AND id NOT IN (${data.map(m => `'${m}'`).join(',')})`).then(r => r.recordset)
     const inHouseNotScanned = inHouseQuery.map(m => m.id.toLowerCase())
 
     // Update Locations
     if (wrongLocationAssets.length > 0) {
-        let locationQuery = await pool.request().query(`UPDATE assets SET location = 'MDCentric' WHERE ${wrongLocationAssets.map(m => `id = '${m}'`).join(' OR ')}`)
+        let locationQuery = await pool.request().query(`UPDATE assets SET location = 'In-House' WHERE ${wrongLocationAssets.map(m => `id = '${m}'`).join(' OR ')}`)
             .catch(er => { return { errored: true, er } })
         if (locationQuery.errored) return res.status(500).json({ error: locationQuery.er })
     }
