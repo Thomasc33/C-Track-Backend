@@ -16,11 +16,13 @@
         "clientSecret": "",
         "token": "",
         "GentivaCustomerID": "",
-        "CPOCID" : ""
+        "CPOCID": ""
     },
     "port": 80,
     "tenantId": "",
+    "clientSecret": "",
     "appid": "",
+    "graphUrl": "https://graph.microsoft.com/v1.0",
     "newAssetStatusCode": "3",
     "deviceTypes": [
         "IGEL",
