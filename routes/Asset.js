@@ -1121,7 +1121,7 @@ Router.get('/overview', async (req, res) => {
     let deployCodes = new Set([45, 46, 49, 92, 94, 95, 109, 113, 114, 119, 120])
     let overview = []
     overview.push({ name: 'Total Assets', value: assets.length })
-    overview.push({ name: 'Estimated In-House', value: assets.filter(a => a.location.toLowerCase() == 'In-House').length })
+    overview.push({ name: 'Estimated In-House', value: assets.filter(a => a.location.toLowerCase() == 'in-house').length })
     overview.push({ name: 'Deployed', value: assets.filter(a => deployCodes.has(a.status)).length })
     overview.push({ name: 'Decommisioned', value: assets.filter(a => a.location.toUpperCase() == 'DECOMMISSIONED').length })
 
