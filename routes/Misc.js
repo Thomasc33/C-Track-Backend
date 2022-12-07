@@ -347,4 +347,21 @@ Router.post('/rff/voicemail', async (req, res) => {
     return res.status(200).json({ success: true })
 })
 
+Router.get('/rff/tickets', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+
+    // Connect to the database
+    const pool = await sql.connect(config)
+
+    // Get tickets
+    const tickets = await pool.request().query(`SELECT ticket, returned FROM rff`)
+        .catch(er => { return { errored: true, er } }).then(r => r.recordset)
+    if (tickets.errored) return res.status(500).json({ error: tickets.er })
+
+    return res.status(200).json({ success: true, tickets })
+})
+
 module.exports = Router
