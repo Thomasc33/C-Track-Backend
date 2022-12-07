@@ -17,6 +17,10 @@ Router.get('/verify', async (req, res) => {
 
     if (uid.error == 'archived') return res.status(400).json({ message: 'archived' })
 
+    // Validate Token
+    if (token == 'Bearer null') return res.status(400).json({ error: 'Bad token' })
+    let id = await tokenParsing.validateToken(req.headers.authorization).catch(er => false)
+
     //get and parse token
     const decoded = jwt_decode(req.headers.authorization)
 
@@ -26,6 +30,9 @@ Router.get('/verify', async (req, res) => {
     const tenant = decoded.tid
     const appid = decoded.appid
     const oid = decoded.oid
+
+    // Validate oid == id
+    if (oid !== id) return res.status(400).json({ error: 'Bad oid' })
 
     //validate tenant and appid
     if (tenant !== require('../settings.json').tenantId) return res.status(400).json({ error: 'Bad domain' })
