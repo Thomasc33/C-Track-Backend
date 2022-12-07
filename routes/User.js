@@ -25,6 +25,7 @@ Router.get('/verify', async (req, res) => {
     const email = decoded.unique_name
     const tenant = decoded.tid
     const appid = decoded.appid
+    const oid = decoded.oid
 
     //validate tenant and appid
     if (tenant !== require('../settings.json').tenantId) return res.status(400).json({ error: 'Bad domain' })
@@ -37,7 +38,7 @@ Router.get('/verify', async (req, res) => {
     let pool = await sql.connect(config)
 
     //query
-    let resu = await pool.request().query(`INSERT INTO users (username, is_dark_theme, is_admin, email, title, name) VALUES ('${username}','1','0','${email}','Employee', '${name}')`)
+    let resu = await pool.request().query(`INSERT INTO users (username, is_admin, email, title, name, oid) VALUES ('${username}', 0,'${email}','Employee', '${name}', '${oid}')`)
         .catch(er => { return { isErrored: true, error: er } })
     if (resu.isErrored) return res.status(500).json({ error: resu.error })
     res.status(200).json({ message: `Success` })
