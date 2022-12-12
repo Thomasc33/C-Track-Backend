@@ -212,11 +212,18 @@ Router.post('/rff/snooze', async (req, res) => {
     if (!req.body) return res.status(400).json({ error: 'No body' })
 
     // Get id from body
-    const { id } = req.body
+    const { id, snoozeTime } = req.body
     if (!id) return res.status(400).json({ error: 'Missing required fields' })
+    if (!snoozeTime) return res.status(400).json({ error: 'Missing snooze time' })
+    if (isNaN(+snoozeTime)) return res.status(400).json({ error: 'Snooze time is not a number' })
 
     // Connect to the database
     const pool = await sql.connect(config)
+
+    // Get snooze end date
+    let snooze_end = new Date()
+    snooze_end.setDate(snooze_end.getDate() + +snoozeTime)
+    snooze_end = snooze_end.toISOString().split('T')[0]
 
     // Check if rff record exists
     const asset_q = await pool.request().query(`SELECT id FROM rff WHERE id = '${id}'`)
@@ -225,7 +232,7 @@ Router.post('/rff/snooze', async (req, res) => {
     if (!asset_q || !asset_q.length) return res.status(400).json({ error: 'RFF record doesnt exist ' + id })
 
     // Update rff table
-    const rff = await pool.request().query(`UPDATE rff SET snooze_date = GETDATE(), call_count = call_count + 1, last_caller = '${uid}', last_call = GETDATE() WHERE id = '${id}'`)
+    const rff = await pool.request().query(`UPDATE rff SET snooze_date = '${snooze_end}', call_count = call_count + 1, last_caller = '${uid}', last_call = GETDATE() WHERE id = '${id}'`)
         .catch(er => { return { errored: true, er } })
     if (rff.errored) return res.status(500).json({ error: rff.er })
     if (!rff || !rff.rowsAffected || !rff.rowsAffected.length || !rff.rowsAffected[0]) return res.status(400).json({ error: 'Failed to update rff table' })
@@ -256,6 +263,69 @@ Router.post('/rff/loststolen', async (req, res) => {
 
     // Update rff table
     const rff = await pool.request().query(`UPDATE rff SET lost_stolen = 1, call_count = call_count + 1, last_caller = '${uid}', last_call = GETDATE() WHERE id = '${id}'`)
+        .catch(er => { return { errored: true, er } })
+    if (rff.errored) return res.status(500).json({ error: rff.er })
+    if (!rff || !rff.rowsAffected || !rff.rowsAffected.length || !rff.rowsAffected[0]) return res.status(400).json({ error: 'Failed to update rff table' })
+
+    return res.status(200).json({ success: true })
+})
+
+Router.post('/rff/return', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.edit_models) return res.status(401).json({ error: 'Not authtorized to use this route' })
+    if (!req.body) return res.status(400).json({ error: 'No body' })
+
+    // Get id from body
+    const { id } = req.body
+    if (!id) return res.status(400).json({ error: 'Missing required fields' })
+
+    // Connect to the database
+    const pool = await sql.connect(config)
+
+    // Check if rff record exists
+    const asset_q = await pool.request().query(`SELECT id FROM rff WHERE id = '${id}'`)
+        .catch(er => { return { errored: true, er } }).then(r => r.recordset)
+    if (asset_q.errored) return res.status(500).json({ error: asset_q.er })
+    if (!asset_q || !asset_q.length) return res.status(400).json({ error: 'RFF record doesnt exist ' + id })
+
+    // Update rff table
+    const q = await pool.request().query(`UPDATE rff SET returned = 1 WHERE id = '${id}'`)
+        .catch(er => { return { errored: true, er } })
+    if (q.errored) return res.status(500).json({ error: q.er })
+    if (!q || !q.rowsAffected || !q.rowsAffected.length || !q.rowsAffected[0]) return res.status(400).json({ error: 'Failed to update rff table' })
+
+    return res.status(200).json({ success: true })
+})
+
+Router.post('/rff/note', async (req, res) => {
+    // Make sure user can use this route
+    const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (uid.errored) return res.status(400).json({ error: uid.er })
+    if (!isAdmin && !permissions.use_rff_tracking) return res.status(401).json({ error: 'Not authtorized to use this route' })
+    if (!req.body) return res.status(400).json({ error: 'No body' })
+
+    // Get id from body
+    let { id, note } = req.body
+    if (!id || !note) return res.status(400).json({ error: 'Missing required fields' })
+
+    // Sanitize note for SQL server
+    note = note.replace(/'/g, "''")
+
+    // Connect to the database
+    const pool = await sql.connect(config)
+
+    // Check if rff record exists
+    const asset_q = await pool.request().query(`SELECT id FROM rff WHERE id = '${id}'`)
+        .catch(er => { return { errored: true, er } }).then(r => r.recordset)
+    if (asset_q.errored) return res.status(500).json({ error: asset_q.er })
+    if (!asset_q || !asset_q.length) return res.status(400).json({ error: 'RFF record doesnt exist ' + id })
+
+    // Update rff table
+    const rff = await pool.request().query(`UPDATE rff SET notes = '${note}' WHERE id = '${id}'`)
         .catch(er => { return { errored: true, er } })
     if (rff.errored) return res.status(500).json({ error: rff.er })
     if (!rff || !rff.rowsAffected || !rff.rowsAffected.length || !rff.rowsAffected[0]) return res.status(400).json({ error: 'Failed to update rff table' })

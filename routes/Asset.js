@@ -1214,7 +1214,7 @@ Router.post('/report', async (req, res) => {
         let latestUpdates = {}
         for (let i of asset_tracking) {
             if (!latestUpdates[i.asset_id.toLowerCase().trim()]) latestUpdates[i.asset_id.toLowerCase().trim()] = i
-            else if (moment(i.date).isAfter(latestUpdates[i.asset_id.toLowerCase().trim()].date)) latestUpdates[i.asset_id.toLowerCase().trim()] = i
+            else if (moment(i.updated).isAfter(moment(latestUpdates[i.asset_id.toLowerCase().trim()].updated))) latestUpdates[i.asset_id.toLowerCase().trim()] = i
         }
         for (let i of assets) i.latest_update = latestUpdates[i.id.toLowerCase().trim()].updated
     }
