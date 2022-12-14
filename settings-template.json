@@ -30,6 +30,8 @@
         "Tablet",
         "Phone",
         "MiFi",
+        "LFF",
+        "SFF",
         "depricated"
     ],
     "deviceCompanies": [
