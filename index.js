@@ -65,15 +65,12 @@ app.use((req, res, next) => {
 })
 
 const ignoreLogURLS = [
-    '/a/favorites/asset',
-    '/a/user',
-    '/a/all',
-    '/a/all/asset',
+    '/a/job/favorites?type=asset',
     '/a/permissions',
-    '/a/favorites/hrly',
-    '/a/all/hrly',
-    '/a/catalog',
-    '/a/user/notifications'
+    '/a/job/favorites?type=hrly',
+    '/a/user/notifications',
+    '/a/job/all/type?type=hrly',
+    '/a/job/all/type?type=asset',
 ]
 
 // Request Logging
@@ -81,7 +78,7 @@ app.use((req, res, next) => {
     if (ignoreLogURLS.includes(req.url)) return next()
     let d = new Date();
     let formatted_date = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
-    let log = `[${formatted_date}] ${req.method}:${req.url} ${res.statusCode}`;
+    let log = `[${formatted_date}] ${req.method}:${req.url}`;
     console.log(log);
     next();
 })

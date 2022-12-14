@@ -74,7 +74,6 @@ Router.post('/new', async (req, res) => {
     return res.status(200).json({ message: 'success' })
 })
 
-//TODO: this
 Router.post('/edit', async (req, res) => {
     // Get UID from token header and check for admin
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
