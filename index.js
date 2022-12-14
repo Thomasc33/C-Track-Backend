@@ -64,18 +64,23 @@ app.use((req, res, next) => {
     next()
 })
 
-const ignoreLogURLS = [
-    '/a/job/favorites?type=asset',
+const ignoreLogURLS = new Set([
     '/a/permissions',
-    '/a/job/favorites?type=hrly',
     '/a/user/notifications',
+    '/notifications',
+    '/a/job/favorites?type=asset',
+    '/a/job/favorites?type=hrly',
     '/a/job/all/type?type=hrly',
     '/a/job/all/type?type=asset',
-]
+    '/all/type?type=hrly',
+    '/all/type?type=asset',
+    '/favorites?type=asset',
+    '/favorites?type=hrly',
+])
 
 // Request Logging
 app.use((req, res, next) => {
-    if (ignoreLogURLS.includes(req.url)) return next()
+    if (ignoreLogURLS.has(req.url)) return next()
     let d = new Date();
     let formatted_date = d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() + " " + d.getHours() + ":" + d.getMinutes() + ":" + d.getSeconds();
     let log = `[${formatted_date}] ${req.method}:${req.url}`;
@@ -87,7 +92,7 @@ app.use((req, res, next) => {
 app.use(async (req, res, next) => {
     if (!req.headers.authorization) return res.status(403).json('Missing authorization header')
     next()
-    if (ignoreLogURLS.includes(req.url)) return
+    if (ignoreLogURLS.has(req.url)) return
 
     // Get UID
     const uid = await tokenParsing.toUID(req.headers.authorization)
