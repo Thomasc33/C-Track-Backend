@@ -26,7 +26,6 @@ Router.get('/verify', async (req, res) => {
 
     //interpret parsing
     const name = decoded.name
-    const email = decoded.unique_name
     const tenant = decoded.tid
     const appid = decoded.appid
     const oid = decoded.oid
@@ -38,14 +37,11 @@ Router.get('/verify', async (req, res) => {
     if (tenant !== require('../settings.json').tenantId) return res.status(400).json({ error: 'Bad domain' })
     if (appid !== require('../settings.json').appid) return res.status(400).json({ error: 'bad appid' })
 
-    //grab username
-    const username = email.substr(0, email.indexOf('@'))
-
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
     //query
-    let resu = await pool.request().query(`INSERT INTO users (username, is_admin, email, title, name, oid) VALUES ('${username}', 0,'${email}','Employee', '${name}', '${oid}')`)
+    let resu = await pool.request().query(`INSERT INTO users (title, name, oid) VALUES ('Employee', '${name}', '${oid}')`)
         .catch(er => { return { isErrored: true, error: er } })
     if (resu.isErrored) return res.status(500).json({ error: resu.error })
     res.status(200).json({ message: `Success` })
@@ -74,7 +70,7 @@ Router.get('/all', async (req, res) => {
     let pool = await sql.connect(config)
 
     //query
-    let users = await pool.request().query(`SELECT id, name, email, title FROM users WHERE is_archived = 0`)
+    let users = await pool.request().query(`SELECT id, name, title FROM users WHERE is_archived = 0`)
         .catch(er => { return { isErrored: true, error: er } })
     if (users.isErrored) return res.status(500).json({ error: users.error })
 
