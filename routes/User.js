@@ -18,7 +18,7 @@ Router.get('/verify', async (req, res) => {
     if (uid.error == 'archived') return res.status(400).json({ message: 'archived' })
 
     // Validate Token
-    if (token == 'Bearer null') return res.status(400).json({ error: 'Bad token' })
+    if (req.headers.authorization == 'Bearer null') return res.status(400).json({ error: 'Bad token' })
     let id = await tokenParsing.validateToken(req.headers.authorization).catch(er => false)
 
     //get and parse token
