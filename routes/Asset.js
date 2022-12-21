@@ -211,9 +211,14 @@ Router.post('/user/new', async (req, res) => {
         if (lastUpdate.recordset.length == 2) {
             let lastUpdateDate = new Date(lastUpdate.recordset[1].date)
             let today = new Date()
-            // if (today - lastUpdateDate < 604800000) notifications.checkinNotify(asset_id, job_code_query.recordset[0].job_name || job_code, uid)
-            notifications.checkinNotify(asset_id, job_code_query.recordset[0].job_name || job_code, uid)
+            if (today - lastUpdateDate < 604800000) notifications.checkinNotify(asset_id, job_code_query.recordset[0].job_name || job_code, uid, lastUpdateDate)
         }
+    }
+
+    // Notify if this was overriden
+    if (data.ruleOverride) {
+        let user = await pool.request().query(`SELECT name FROM users WHERE id = '${uid}'`)
+        notifications.notifyOverride(user.recordset[0].name, asset_id, job_code_query.recordset[0].job_name || job_code)
     }
 })
 
