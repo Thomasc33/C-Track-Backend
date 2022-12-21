@@ -204,6 +204,17 @@ Router.post('/user/new', async (req, res) => {
     // Send notification if asset is being watched
     notifications.notify(req.headers.authorization, asset_id, job_code_query.recordset[0].job_name || job_code)
     if (asset_query.recordset[0].hold_type) notifications.hold_notify(asset_id, job_code_query.recordset[0].job_name || job_code)
+
+    // Send notification if a checkin and the last update was less than 7 days ago
+    if (ruleGroup == 'chkn') {
+        let lastUpdate = await pool.request().query(`SELECT TOP 2 date FROM asset_tracking WHERE asset_id = '${asset_id}' ORDER BY date DESC`)
+        if (lastUpdate.recordset.length == 2) {
+            let lastUpdateDate = new Date(lastUpdate.recordset[1].date)
+            let today = new Date()
+            // if (today - lastUpdateDate < 604800000) notifications.checkinNotify(asset_id, job_code_query.recordset[0].job_name || job_code, uid)
+            notifications.checkinNotify(asset_id, job_code_query.recordset[0].job_name || job_code, uid)
+        }
+    }
 })
 
 Router.post('/user/edit', async (req, res) => {
