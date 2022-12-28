@@ -70,7 +70,7 @@ Router.get('/all', async (req, res) => {
     let pool = await sql.connect(config)
 
     //query
-    let users = await pool.request().query(`SELECT id, name, title FROM users WHERE is_archived = 0`)
+    let users = await pool.request().query(`SELECT id, name, title, tsheets_id FROM users WHERE is_archived = 0`)
         .catch(er => { return { isErrored: true, error: er } })
     if (users.isErrored) return res.status(500).json({ error: users.error })
 
@@ -415,6 +415,36 @@ Router.get('/discrepancy/all', async (req, res) => {
 
     // Call discrepancycheck
     await discrepencyChecks.check()
+
+    // Return
+    return res.status(200).json({ message: `Complete` })
+})
+
+Router.post('/tsheets', async (req, res) => {
+    console.log('in tsheets')
+    // Check token and permissions
+    const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
+        .catch(er => { return { uid: { errored: true, er } } })
+    if (!isAdmin && !permissions.edit_users) return res.status(401).json({ error: 'Forbidden' })
+
+    // Get ID from header
+    const { id, tsheets } = req.body
+
+    // Validate header
+    if (!id || isNaN(+id)) return res.status(400).json({ message: 'missing/invalid id:'.concat(id) })
+    if (!tsheets || isNaN(+tsheets)) return res.status(400).json({ message: 'missing/invalid id:'.concat(tsheets) })
+
+    console.log('past bad request')
+
+    // Establish SQL Connection
+    let pool = await sql.connect(config)
+
+    //Query
+    let q = await pool.request().query(`UPDATE users SET tsheets_id = '${tsheets}' WHERE id = '${id}'`)
+        .catch(er => { return { isErrored: true, error: er } })
+    if (q.isErrored) return res.status(500).json({ error: q.error })
+
+    console.log(q)
 
     // Return
     return res.status(200).json({ message: `Complete` })
