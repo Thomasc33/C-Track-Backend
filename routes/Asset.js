@@ -1095,7 +1095,7 @@ Router.post('/locations', async (req, res) => {
     const { uid, isAdmin, permissions } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
     if (uid.errored) return res.status(400).json({ error: uid.er })
-    if (!isAdmin && !permissions.edit_branches) return res.status(403).json({ error: 'Permission denied' })
+    if (!isAdmin && !permissions.view_branches) return res.status(403).json({ error: 'Permission denied' })
 
     // Get Location from body
     const { location } = req.body
