@@ -6,13 +6,7 @@ const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
 const reportTunables = require('../data/reportTunables.json')
 const tsSettings = require('../settings.json').tsheets
-const SnipeBearer = require('../settings.json').snipeBearer
 const tsheetsBearer = tsSettings.token
-const snipeAPILink = 'https://cpoc.snipe-it.io/api/v1'
-const userIdToSnipe = require('../data/snipeUserConversion.json')
-const snipeToUID = Object.fromEntries(Object.entries(userIdToSnipe).map(a => a.reverse()))
-const UIDtoTSheetsUID = require('../data/tsheetsUidConversion.json')
-const TSheetsUIDtoUID = Object.fromEntries(Object.entries(UIDtoTSheetsUID).map(a => a.reverse()))
 const JobCodePairs = require('../data/jobCodePairs.json')
 const JobCodePairsSet = new Set()
 JobCodePairs.forEach(a => a.forEach(ele => JobCodePairsSet.add(ele)))
@@ -604,14 +598,12 @@ Router.get('/excel', async (req, res) => {
         [{ value: `${range ? `${range}-` : ''}${date}`, fontWeight: 'bold' }],
         [],
         [{ value: 'Total Revenue', leftBorderStyle: 'thick', topBorderStyle: 'thick' }, { value: 0, topBorderStyle: 'thick', rightBorderStyle: 'thick' }],
-        [{ value: 'Revenue Without John', leftBorderStyle: 'thick' }, { value: 0, rightBorderStyle: 'thick' }], // remove this line if john leaves, also update indexes below
         [{ value: 'Total Hours', leftBorderStyle: 'thick' }, { value: 0, rightBorderStyle: 'thick' }],
         [{ value: 'Average Hourly Revenue', leftBorderStyle: 'thick', bottomBorderStyle: 'thick' }, { value: 0, bottomBorderStyle: 'thick', rightBorderStyle: 'thick' }],
         [], [], []
     ]
     let total_hours = 0
     let total_revenue = 0
-    let john_revenue = 0
     let discrepancies = {}
     for (let i of applicableUsers) discrepancies[i] = []
     let tsheetsVisited = new Set()
@@ -671,7 +663,7 @@ Router.get('/excel', async (req, res) => {
             // Go through each date
             for (let date of dates) {
                 // If the tsheets data exists, add it to the count
-                if (tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || (complimentaryJC && i.jobCode == complimentaryJC)) {
+                if (tsheets_data && tsheets_data[date] && tsheets_data[date][id]) for (let i of tsheets_data[date][id].timesheets) if (i.jobCode == `${jc}` || (complimentaryJC && i.jobCode == complimentaryJC)) {
                     ts_hours += i.hours;
                     ts_count += parseInt(i.count);
                     tsheetsVisited.add(i.id)
@@ -725,7 +717,7 @@ Router.get('/excel', async (req, res) => {
             if (hrly_revenue == Infinity) hrly_revenue = 0
 
             // Discrepancy check
-            if (job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count)) discrepancies[id].push({ jc, ts_count, count, date, unique })
+            if (tsheets_data && job_codes[jc].requires_asset) if ((Object.keys(tsheets_data).length && ts_count !== count)) discrepancies[id].push({ jc, ts_count, count, date, unique })
 
             d.push([{ value: job_codes[jc].name, rightBorderStyle: 'thin', },
             { value: Array.from(job_price).join(','), rightBorderStyle: 'thin', },
@@ -941,9 +933,6 @@ Router.get('/excel', async (req, res) => {
             else if (jc.includes('professional development') && !billable) { discrepancies[id].push({ jc: i.customfields['969708'], date: today, message: `Non-Billable PD` }) }
         }
 
-        // Add johns revenue
-        if (id == 9) john_revenue = totalrevenue
-
         return d
     }
 
@@ -1001,7 +990,7 @@ Router.get('/excel', async (req, res) => {
     applicableUsers.forEach(u => data.push(...getUserData(u), [], []))
 
     // In T-Sheets but not C-Track
-    if (tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid].timesheets) {
+    if (tsheets_data && tsheets_data[date]) for (let uid in tsheets_data[date]) for (let sheet of tsheets_data[date][uid].timesheets) {
         if (!tsheetsVisited.has(sheet.id) && sheet.jobcode_id != tsSettings.CPOCID) {
             if (!discrepancies[uid]) discrepancies[uid] = []
             discrepancies[uid].push({ jc: sheet.customfields ? sheet.customfields['969708'] || sheet.notes : sheet.notes, ts_hours: sheet.hours, count: 0, date: date })
@@ -1011,35 +1000,11 @@ Router.get('/excel', async (req, res) => {
     // For each user, if there were discrepancies, add them to the data
     applicableUsers.forEach(u => { if (discrepancies[u] && discrepancies[u].length > 0) data.push(...getDiscrepancy(u), [], []) })
 
-    // If Johns Revenue is 0, get it from T-Sheets
-    if (john_revenue == 0) for (let date of dates) {
-        let ts = tsheets_data[date]
-        if (ts[9]) for (let s of ts[9].timesheets) {
-            // Get Job Code
-            let jc = s.jobCode
-
-            // Get Complimentary Job Code
-            let complimentaryJC
-            for (let i of JobCodePairs) if (i.includes(jc)) for (let j of i) if (j != jc) complimentaryJC = j
-
-            // Get highest rate
-            let p = getPriceFromDate(prices, date, jc)
-            let complimentaryP = complimentaryJC ? getPriceFromDate(prices, date, complimentaryJC) : 0
-            p = Math.max(p, complimentaryP)
-
-            // Add hours * price to john_revenue and total_revenue
-            john_revenue += s.hours * p
-            total_revenue += s.hours * p
-        }
-    }
-
-
     // Update global totals
     data[3][1].value = total_revenue
-    data[4][1].value = +total_revenue - +john_revenue
-    data[5][1].value = total_hours
-    data[6][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours, 3)
-    data[6][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
+    data[4][1].value = total_hours
+    data[5][1].value = total_hours == 0 ? 0 : round(total_revenue / total_hours, 3)
+    data[5][1].backgroundColor = round(total_revenue / total_hours, 3) >= reportTunables.overPercent * reportTunables.expectedHourly ? reportTunables.overColor : round(total_revenue / total_hours, 3) <= reportTunables.underPercent * reportTunables.expectedHourly ? reportTunables.underColor : reportTunables.goalColor
 
     // Set column widths
     const columns = [{ width: 40 }, { width: 17.5 }, { width: 18.25 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }, { width: 17.5 }]
@@ -1096,6 +1061,9 @@ function getDate(date) {
 async function getTsheetsData(job_codes, start, end, user_ids = [], includeCPOC = false) {
     // Data holder
     const tsheets_data = {}
+
+    // Get TSheets IDS
+    let { TSheetsUIDtoUID, UIDtoTSheetsUID } = await getTSheetsUIDs()
 
     // Convert c-track user ids to tsheets user ids
     if (user_ids.length) user_ids = user_ids.filter(a => UIDtoTSheetsUID[`${a}`]).map(m => UIDtoTSheetsUID[m] || undefined)
@@ -1183,6 +1151,7 @@ async function getTsheetsData(job_codes, start, end, user_ids = [], includeCPOC 
  *      }
  * }
  */
+/**
 function getSnipeData(start, end = null) {
     return new Promise(async (res, rej) => {
         // Get current job codes and snipe ids
@@ -1254,6 +1223,7 @@ function getSnipeData(start, end = null) {
         res(data)
     })
 }
+*/
 
 function getSnipeIds() {
     return new Promise(async res => {
@@ -1266,13 +1236,22 @@ function getSnipeIds() {
 
 const round = (x, n) => Number(parseFloat(Math.round(x * Math.pow(10, n)) / Math.pow(10, n)).toFixed(n));
 
-module.exports = { Router, getTsheetsData, getSnipeData }
+const getTSheetsUIDs = async () => {
+    let pool = await sql.connect(config)
+    let q = await pool.request().query(`SELECT id,tsheets_id FROM users WHERE tsheets_id IS NOT NULL`).then(r => r.recordset)
+    let TSheetsUIDtoUID = {}, UIDtoTSheetsUID = {}
+    for (let i of q) { TSheetsUIDtoUID[i.tsheets_id] = i.id; UIDtoTSheetsUID[i.id] = i.tsheets_id }
+    //TSheetsUIDtoUID, UIDtoTSheetsUID
+    return { TSheetsUIDtoUID, UIDtoTSheetsUID }
+}
+
+module.exports = { Router, getTsheetsData }//, getSnipeData }
 
 /** Code to get all the job codes from snipe and match them to the db
         let d = await axios.get(`${snipeAPILink}/statuslabels`, { headers: { Authorization: SnipeBearer } }).then(d => d.data)
         let pool = await sql.connect({
             "user": "NodeExpress",
-            "password": "J9:N*pJkh@5rsjX^",
+            "password": "",
             "database": "Tracker",
             "server": "192.168.205.221",
             "options": {

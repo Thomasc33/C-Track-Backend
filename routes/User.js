@@ -421,7 +421,6 @@ Router.get('/discrepancy/all', async (req, res) => {
 })
 
 Router.post('/tsheets', async (req, res) => {
-    console.log('in tsheets')
     // Check token and permissions
     const { uid, isAdmin, permissions, errored, er } = await tokenParsing.checkPermissions(req.headers.authorization)
         .catch(er => { return { uid: { errored: true, er } } })
@@ -432,19 +431,15 @@ Router.post('/tsheets', async (req, res) => {
 
     // Validate header
     if (!id || isNaN(+id)) return res.status(400).json({ message: 'missing/invalid id:'.concat(id) })
-    if (!tsheets || isNaN(+tsheets)) return res.status(400).json({ message: 'missing/invalid id:'.concat(tsheets) })
-
-    console.log('past bad request')
+    if (tsheets && isNaN(+tsheets)) return res.status(400).json({ message: 'invalid tsheets id:'.concat(tsheets) })
 
     // Establish SQL Connection
     let pool = await sql.connect(config)
 
     //Query
-    let q = await pool.request().query(`UPDATE users SET tsheets_id = '${tsheets}' WHERE id = '${id}'`)
+    let q = await pool.request().query(`UPDATE users SET tsheets_id = ${tsheets ? `'${tsheets}'` : 'NULL'} WHERE id = '${id}'`)
         .catch(er => { return { isErrored: true, error: er } })
     if (q.isErrored) return res.status(500).json({ error: q.error })
-
-    console.log(q)
 
     // Return
     return res.status(200).json({ message: `Complete` })
