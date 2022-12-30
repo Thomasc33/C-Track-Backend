@@ -1191,7 +1191,7 @@ Router.post('/report', async (req, res) => {
 
     // Get Assets
     let filters = [status && status.length ? { val: status, name: 'status' } : undefined, location && location.length ? { val: location, name: 'location' } : undefined, locked && locked.length == 1 ? { val: [locked.map(m => m == 'Yes' ? 1 : 0)], name: 'locked' } : undefined].filter(i => i)
-    let assets = await pool.request().query(`SELECT ${attributes && attributes.length ? [...new Set([...attributes, 'model_number'])].join(' + ') : '*'} FROM assets${filters.length ? ` WHERE ${filters.map(f => `(${f.val.map(m => `${f.name} = '${m}'`).join(' OR ')})`).join(' AND ')}` : ''}`).then(r => r.recordset)
+    let assets = await pool.request().query(`SELECT ${attributes && attributes.length ? [...new Set([...attributes, 'model_number'])].join(', ') : '*'} FROM assets${filters.length ? ` WHERE ${filters.map(f => `(${f.val.map(m => `${f.name} = '${m}'`).join(' OR ')})`).join(' AND ')}` : ''}`).then(r => r.recordset)
         .catch(er => { console.log(er); return { isErrored: true, error: er } })
     if (assets.isErrored) return res.status(500).json({ message: 'how' })
 
