@@ -4,6 +4,7 @@ const sql = require('mssql')
 const axios = require('axios').default
 const config = require('../settings.json').SQLConfig
 const tokenParsing = require('../lib/tokenParsing')
+const findTSheetsID = require('../lib/findTSheetsID')
 const reportTunables = require('../data/reportTunables.json')
 const tsSettings = require('../settings.json').tsheets
 const tsheetsBearer = tsSettings.token
@@ -1238,9 +1239,14 @@ const round = (x, n) => Number(parseFloat(Math.round(x * Math.pow(10, n)) / Math
 
 const getTSheetsUIDs = async () => {
     let pool = await sql.connect(config)
-    let q = await pool.request().query(`SELECT id,tsheets_id FROM users WHERE tsheets_id IS NOT NULL`).then(r => r.recordset)
+    let q = await pool.request().query(`SELECT id,tsheets_id FROM users`).then(r => r.recordset)
     let TSheetsUIDtoUID = {}, UIDtoTSheetsUID = {}
-    for (let i of q) { TSheetsUIDtoUID[i.tsheets_id] = i.id; UIDtoTSheetsUID[i.id] = i.tsheets_id }
+    let cacheID = Math.random()
+    for (let i of q) if (!i.tsheets_id) {
+        let id = await findTSheetsID.findTSheetsID(i.id, cacheID).catch(er => undefined)
+        if (id) i.tsheets_id = id
+    }
+    for (let i of q) if (i.tsheets_id) { TSheetsUIDtoUID[i.tsheets_id] = i.id; UIDtoTSheetsUID[i.id] = i.tsheets_id }
     //TSheetsUIDtoUID, UIDtoTSheetsUID
     return { TSheetsUIDtoUID, UIDtoTSheetsUID }
 }

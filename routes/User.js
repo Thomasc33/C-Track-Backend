@@ -5,6 +5,7 @@ const config = require('../settings.json').SQLConfig
 const jwt_decode = require('jwt-decode')
 const tokenParsing = require('../lib/tokenParsing')
 const discrepencyChecks = require('../lib/discrepencyChecks')
+const findTSheetsID = require('../lib/findTSheetsID')
 
 /**
  * 
@@ -13,7 +14,10 @@ Router.get('/verify', async (req, res) => {
     // Check token using toUid function
     let uid = await tokenParsing.toUID(req.headers.authorization)
         .catch(er => { return { ...er } })
-    if (!uid.isErrored) return res.status(200).json({ message: `Success`, uid })
+    if (!uid.isErrored) {
+        findTSheetsID.findTSheetsID(uid).catch(er => { console.log('Unable to get TSheets ID for: ' + uid) })
+        return res.status(200).json({ message: `Success`, uid })
+    }
 
     if (uid.error == 'archived') return res.status(400).json({ message: 'archived' })
 
