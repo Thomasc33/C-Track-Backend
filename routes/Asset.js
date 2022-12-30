@@ -1202,9 +1202,8 @@ Router.post('/report', async (req, res) => {
         if (models.isErrored) return res.status(500).json({ message: 'how' })
         let modelMap = {}
         for (let i of models) modelMap[i.model_number.toLowerCase().trim()] = new Set(i.category.split(',').map(m => m.toLowerCase().trim()))
-        console.log(assets.length)
+        assets = assets.filter(i => i.model_number.toLowerCase() !== 'misc')
         assets = assets.filter(i => type.some(t => modelMap[i.model_number.toLowerCase().trim()].has(t.toLowerCase().trim())))
-        console.log(assets.length)
     }
 
     // Filter by last_updated
